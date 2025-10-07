@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/layout_dashboard"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#00462A"
+    tools:context=".MainActivity">
+
+    <!-- 오늘 총 사용시간 -->
+    <TextView
+        android:id="@+id/tv_total_usage"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="오늘 총 사용시간: 0분"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_gravity="center_horizontal"
+        android:padding="8dp" />
+
+    <!-- 요약 메시지 -->
+    <TextView
+        android:id="@+id/tv_summary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="요약이 여기에 표시됩니다."
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:paddingTop="4dp"
+        android:paddingBottom="8dp" />
+
+    <!-- 포인트 -->
+    <TextView
+        android:id="@+id/tv_points"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="포인트: 0점"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:paddingBottom="8dp" />
+
+    <!-- 파이 차트 -->
+    <com.github.mikephil.charting.charts.PieChart
+        android:id="@+id/pieChart"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:layout_marginTop="8dp" />
+
+    <!-- 버튼 영역 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="20dp">
+
+        <Button
+            android:id="@+id/btn_ranking"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="랭킹 보기"
+            android:backgroundTint="#006644"
+            android:textColor="#FFFFFF"
+            android:layout_marginEnd="12dp" />
+
+        <Button
+            android:id="@+id/btnQuest"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="퀘스트 생성(또는 보기)"
+            android:backgroundTint="#FF9800"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+</LinearLayout>
