@@ -1,3 +1,5 @@
+// QuestItem을 통해 생성된 퀘스트를 데이터베이스에도 업로드
+
 package com.example.apptracker
 
 import android.app.usage.UsageEvents
@@ -12,6 +14,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
+
+// 지금 퀘스트 내용이 폰 내부에만 저장되고 있음. 퀘스트 내용과 로그를 분석해서 포인트를 제공해야 하므로 DB에도 업로드
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.ktx.database
+import com.google.firebase.ktx.Firebase
 
 class QuestActivity : AppCompatActivity() {
 
@@ -185,6 +192,10 @@ class QuestActivity : AppCompatActivity() {
             arr.put(o)
         }
         prefs.edit().putString("quests_json", arr.toString()).apply()
+
+        // Firebase에도 저장하는 로직 추가 - 수정된 부분
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        Firebase.database.getReference("quests").child(uid).push().setValue(quest)
     }
 
     /** ✅ 실시간 사용량 업데이트 + 판정 */

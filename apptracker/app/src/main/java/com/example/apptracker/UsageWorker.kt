@@ -1,3 +1,5 @@
+// 사용시간 수집 - firebase에 데이터 업로드
+
 import android.app.AppOpsManager
 import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
