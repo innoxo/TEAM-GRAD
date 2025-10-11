@@ -1,0 +1,10 @@
+# 파이썬 가상환경 폴더
+venv/
+__pycache__/
+
+# 환경 변수 파일 (API 키 포함되어 있음)
+.env
+
+# IDE 설정 파일
+.idea/
+.vscode/
