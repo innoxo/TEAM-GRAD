@@ -34,6 +34,12 @@ class QuestActivity : AppCompatActivity() {
         val etDeadlineDate = findViewById<EditText>(R.id.etDeadlineDate)
         val etDeadlineTime = findViewById<EditText>(R.id.etDeadlineTime)
         val btnSave = findViewById<Button>(R.id.btnSaveQuest)
+        val btnBack = findViewById<Button>(R.id.btn_back)
+
+        // 🔙 뒤로가기 버튼 (단순 종료)
+        btnBack.setOnClickListener {
+            finish()
+        }
 
         @Suppress("UNCHECKED_CAST")
         usageData = intent.getSerializableExtra("usageData") as? HashMap<String, Int>
@@ -215,20 +221,12 @@ class QuestActivity : AppCompatActivity() {
                 quest.completed = when (quest.goalType) {
                     "이하 사용" -> {
                         when {
-                            usedMin > quest.targetMinutes -> {
-                                // 목표치 초과 즉시 실패
-                                false
-                            }
-                            now >= deadline -> {
-                                // 마감 후 이하라면 성공
-                                usedMin <= quest.targetMinutes
-                            }
+                            usedMin > quest.targetMinutes -> false
+                            now >= deadline -> usedMin <= quest.targetMinutes
                             else -> false
                         }
                     }
-                    "이상 사용" -> {
-                        usedMin >= quest.targetMinutes
-                    }
+                    "이상 사용" -> usedMin >= quest.targetMinutes
                     else -> false
                 }
                 if (quest.completed != prev) updated = true

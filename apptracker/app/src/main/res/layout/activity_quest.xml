@@ -7,6 +7,17 @@
     android:orientation="vertical"
     android:padding="16dp">
 
+    <!-- 🔙 뒤로가기 버튼 -->
+    <Button
+        android:id="@+id/btn_back"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="← 뒤로가기"
+        android:backgroundTint="#006644"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="12dp"
+        android:layout_gravity="start" />
+
     <!-- 앱 선택 스피너 -->
     <TextView
         android:layout_width="match_parent"

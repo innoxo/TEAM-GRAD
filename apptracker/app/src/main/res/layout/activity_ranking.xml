@@ -1,62 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#00462A"
-    tools:context=".RankingActivity">
+	xmlns:tools="http://schemas.android.com/tools"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:orientation="vertical"
+	android:padding="16dp"
+	android:background="#00462A"
+	tools:context=".RankingActivity">
 
 	<TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="🏆 랭킹"
-        android:textColor="#FFFFFF"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:layout_gravity="center_horizontal"
-        android:paddingBottom="16dp"/>
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:text="🏆 랭킹"
+		android:textColor="#FFFFFF"
+		android:textSize="24sp"
+		android:textStyle="bold"
+		android:layout_gravity="center_horizontal"
+		android:paddingBottom="16dp" />
+
+	<Button
+		android:id="@+id/btn_back"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:text="← 뒤로가기"
+		android:textColor="#FFFFFF"
+		android:backgroundTint="#006644"
+		android:layout_gravity="center_horizontal"
+		android:padding="8dp"
+		android:layout_marginBottom="16dp" />
 
 	<LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="12dp"
-        android:background="#006644"
-        android:layout_marginBottom="16dp">
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:orientation="vertical"
+		android:padding="12dp"
+		android:background="#006644"
+		android:layout_marginBottom="16dp">
 
 		<TextView
-            android:id="@+id/tv_my_rank"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="나의 랭킹: -"
-            android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold"/>
+			android:id="@+id/tv_my_rank"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="나의 랭킹: -"
+			android:textColor="#FFFFFF"
+			android:textSize="18sp"
+			android:textStyle="bold" />
 
 		<TextView
-            android:id="@+id/tv_my_username"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="이름: 나"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:layout_marginTop="4dp"/>
+			android:id="@+id/tv_my_username"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="이름: -"
+			android:textColor="#FFFFFF"
+			android:textSize="16sp"
+			android:layout_marginTop="4dp" />
 
 		<TextView
-            android:id="@+id/tv_my_points"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="나의 포인트: 0점"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:layout_marginTop="4dp"/>
+			android:id="@+id/tv_my_points"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:text="나의 포인트: 0점"
+			android:textColor="#FFFFFF"
+			android:textSize="16sp"
+			android:layout_marginTop="4dp" />
 	</LinearLayout>
 
-	<androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_ranking_list"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+	<LinearLayout
+		android:id="@+id/rv_ranking_list"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:orientation="vertical" />
 
 </LinearLayout>

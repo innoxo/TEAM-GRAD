@@ -1,26 +1,54 @@
 package com.example.apptracker
 
+import android.content.Intent
 import android.os.Bundle
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 class RankingActivity : AppCompatActivity() {
 
+    private lateinit var tvMyRank: TextView
+    private lateinit var tvMyUsername: TextView
+    private lateinit var tvMyPoints: TextView
+    private lateinit var rankingContainer: LinearLayout
+    private lateinit var btnBack: Button
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_ranking) // activity_ranking.xml ÆäÀÌÁö
+        setContentView(R.layout.activity_ranking)
 
-        // DashboardActivity¿¡¼­ Æ÷ÀÎÆ® °¡Á®¿È
-        val currentUserPoints = intent.getLongExtra("CURRENT_USER_POINTS", 0L)
+        tvMyRank = findViewById(R.id.tv_my_rank)
+        tvMyUsername = findViewById(R.id.tv_my_username)
+        tvMyPoints = findViewById(R.id.tv_my_points)
+        rankingContainer = findViewById(R.id.rv_ranking_list)
+        btnBack = findViewById(R.id.btn_back)
 
-        // È­¸é»óÀÇ TextView °¡Á®¿È
-        val myRankTextView: TextView = findViewById(R.id.tv_my_rank)
-        val myNameTextView: TextView = findViewById(R.id.tv_my_username) // »ç¿ëÀÚ ÀÌ¸§ TextView Ãß°¡ (·¹ÀÌ¾Æ¿ô¿¡ ID°¡ tv_my_usernameÀ¸·Î µÇ¾î ÀÖ´Ù°í °¡Á¤)
-        val myPointsTextView: TextView = findViewById(R.id.tv_my_points)
+        // âœ… ë’¤ë¡œê°€ê¸° ë²„íŠ¼ í´ë¦­ ì‹œ ë©”ì¸ìœ¼ë¡œ ì´ë™
+        btnBack.setOnClickListener {
+            val intent = Intent(this, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            startActivity(intent)
+            finish()
+        }
 
-        // ÇöÀç ·©Å· »ó µ¥ÀÌÅÍ°¡ ÇÏ³ª¸¸ ÀÖ±â ¶§¹®¿¡ 1À§·Î °íÁ¤ ¼³Á¤ÇØµ×À½
-        myRankTextView.text = "³» ¼øÀ§: 1À§"
-        myNameTextView.text = "³ª" // »ç¿ëÀÚ ÀÌ¸§Àº ÀÓÀÇ´ë·Î "³ª"¶ó°í ¼³Á¤ÇÔ
-        myPointsTextView.text = "³» Á¡¼ö: ${currentUserPoints}Á¡"
+        // âœ… í˜„ì¬ ì‚¬ìš©ì ì •ë³´ë§Œ í‘œì‹œ
+        val currentUserName = "demo_user"
+        val currentRank = 1
+        val currentPoints = intent.getStringExtra("points") ?: "í¬ì¸íŠ¸: 0ì "
+
+        // âœ… TextViewì— í•œê¸€ ì •ìƒ í‘œì‹œ
+        tvMyUsername.text = "ì´ë¦„: $currentUserName"
+        tvMyRank.text = "ë‚˜ì˜ ë­í‚¹: ${currentRank}ìœ„"
+        tvMyPoints.text = currentPoints
+
+        // âœ… ë¦¬ìŠ¤íŠ¸ë·°ì— ë‚˜ë§Œ í‘œì‹œ
+        rankingContainer.removeAllViews()
+        val tv = TextView(this)
+        tv.text = "ğŸ‘¤ $currentUserName : ${currentPoints.replace("í¬ì¸íŠ¸: ", "")}"
+        tv.textSize = 18f
+        tv.setTextColor(android.graphics.Color.WHITE)
+        rankingContainer.addView(tv)
     }
 }
