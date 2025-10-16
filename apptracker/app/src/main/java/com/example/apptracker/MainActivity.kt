@@ -10,8 +10,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.Button
-import android.widget.TextView
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.PieData
@@ -38,10 +37,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRanking: Button
     private var autoJob: Job? = null
 
-    // ✅ OpenAI API 키
-    private val apiKey =
-
-
+    // ✅ OpenAI API 키 (GitHub 푸시 에러 방지를 위해 분리 저장)
+    private val apiKey = 
     private val CATEGORY_SCORES = mapOf(
         "공부" to 100,
         "정보수집" to 30,
@@ -142,7 +139,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** ✅ 앱 이름 가져오기 */
     private fun getAppLabel(packageName: String): String {
         return try {
             val pm: PackageManager = packageManager
@@ -153,7 +149,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** ✅ 시스템 앱 필터 */
     private fun isSystemApp(packageName: String): Boolean {
         return try {
             val ai: ApplicationInfo = packageManager.getApplicationInfo(packageName, 0)
@@ -163,7 +158,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** ✅ 24시간 앱 사용 기록 수집 */
     private fun getAppUsageSummary24h(): Map<String, Long> {
         val end = System.currentTimeMillis()
         val start = end - 24L * 60 * 60 * 1000
@@ -248,7 +242,6 @@ $items
             }
         }
 
-    /** ✅ GPT 결과 파싱 */
     private fun parseGptResultOrFallback(gptJson: String, appUsageMs: Map<String, Long>): List<CategorizedItem> {
         return try {
             val arr = JSONArray(gptJson)
@@ -267,7 +260,6 @@ $items
         }
     }
 
-    /** ✅ GPT 실패 시 기본 분류 */
     private fun fallbackCategorized(appUsageMs: Map<String, Long>): List<CategorizedItem> {
         return appUsageMs.map { (pkg, ms) ->
             val label = getAppLabel(pkg).lowercase()
@@ -290,7 +282,6 @@ $items
         val category: String
     )
 
-    /** ✅ 카테고리별 합계 및 문장 생성 */
     private fun aggregateByCategory(items: List<CategorizedItem>): Pair<Map<String, Int>, List<String>> {
         val catMinutes = linkedMapOf<String, Int>()
         val lines = mutableListOf<String>()
@@ -301,7 +292,7 @@ $items
         return Pair(catMinutes, lines)
     }
 
-    /** ✅ 포인트 및 차트 표시 */
+    /** ✅ 스크롤 가능하도록 PieChart 터치 비활성화 추가 */
     private suspend fun savePointsAndRender(categoryMinutes: Map<String, Int>, summaryLines: List<String>): Int =
         withContext(Dispatchers.Main) {
             var totalScore = 0
@@ -328,6 +319,10 @@ $items
             chart.legend.textColor = Color.WHITE
             chart.setHoleColor(Color.TRANSPARENT)
             chart.description.isEnabled = false
+
+            // ✅ 스크롤뷰 방해 안 하게 터치 비활성화
+            chart.setTouchEnabled(false)
+
             chart.invalidate()
 
             return@withContext totalScore
