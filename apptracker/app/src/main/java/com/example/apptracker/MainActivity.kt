@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
 
     // ✅ OpenAI API 키
     private val apiKey =
-        "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"
+
 
     private val CATEGORY_SCORES = mapOf(
         "공부" to 100,
