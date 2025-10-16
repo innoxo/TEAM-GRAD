@@ -35,11 +35,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvPoints: TextView
     private lateinit var chart: PieChart
     private lateinit var btnQuest: Button
+    private lateinit var btnRanking: Button
     private var autoJob: Job? = null
 
     // ✅ OpenAI API 키
-    private val apiKey = 
-       
+    private val apiKey =
 
     private val CATEGORY_SCORES = mapOf(
         "공부" to 100,
@@ -58,15 +58,23 @@ class MainActivity : AppCompatActivity() {
         tvSummary = findViewById(R.id.tv_summary)
         tvPoints = findViewById(R.id.tv_points)
         chart = findViewById(R.id.pieChart)
-        btnQuest = findViewById(R.id.btnQuest) // ✅ 버튼 ID 수정 완료
+        btnQuest = findViewById(R.id.btnQuest)
+        btnRanking = findViewById(R.id.btn_ranking)
 
         usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
 
-        // ✅ 퀘스트 화면 이동 (앱 사용 데이터 전달)
+        // ✅ 퀘스트 화면 이동
         btnQuest.setOnClickListener {
             val appLogs = getAppUsageSummary24h().mapValues { (it.value / 60000L).toInt() }
             val intent = Intent(this, QuestActivity::class.java)
             intent.putExtra("usageData", HashMap(appLogs))
+            startActivity(intent)
+        }
+
+        // ✅ 랭킹 보기 화면 이동
+        btnRanking.setOnClickListener {
+            val intent = Intent(this, RankingActivity::class.java)
+            intent.putExtra("points", tvPoints.text.toString())
             startActivity(intent)
         }
 
