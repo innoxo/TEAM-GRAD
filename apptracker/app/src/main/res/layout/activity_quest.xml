@@ -1,143 +1,151 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/layout_quest"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#00462A"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:background="#00462A"
+    tools:context=".QuestActivity">
 
-    <!-- 🔙 뒤로가기 버튼 -->
-    <Button
-        android:id="@+id/btn_back"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="← 뒤로가기"
-        android:backgroundTint="#006644"
-        android:textColor="#FFFFFF"
-        android:layout_marginBottom="12dp"
-        android:layout_gravity="start" />
-
-    <!-- 앱 선택 스피너 -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="앱 선택"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:paddingBottom="4dp" />
-
-    <Spinner
-        android:id="@+id/spinnerAppList"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:spinnerMode="dropdown"
-        android:layout_marginBottom="12dp" />
-
-    <!-- 목표 시간(분) -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="목표 시간(분)"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:paddingBottom="4dp" />
-
-    <EditText
-        android:id="@+id/etTargetMinutes"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:inputType="number"
-        android:hint="예: 30"
-        android:layout_marginBottom="12dp" />
-
-    <!-- 목표 타입 -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="목표 타입"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:paddingBottom="4dp" />
-
-    <RadioGroup
-        android:id="@+id/rgGoalType"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="12dp">
-
-        <RadioButton
-            android:id="@+id/rbBelow"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="이하 사용"
-            android:textColor="#FFFFFF"
-            android:checked="true" />
-
-        <RadioButton
-            android:id="@+id/rbAbove"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="이상 사용"
-            android:textColor="#FFFFFF"
-            android:layout_marginStart="16dp" />
-    </RadioGroup>
-
-    <!-- 마감일/시간 -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="마감 날짜 (yyyy-MM-dd)"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:paddingBottom="4dp" />
-
-    <EditText
-        android:id="@+id/etDeadlineDate"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="예: 2025-10-07 (미입력 시 오늘)"
-        android:inputType="date"
-        android:layout_marginBottom="12dp" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="마감 시간 (HH:mm)"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:paddingBottom="4dp" />
-
-    <EditText
-        android:id="@+id/etDeadlineTime"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="예: 23:59 (미입력 시 23:59)"
-        android:inputType="time"
-        android:layout_marginBottom="16dp" />
-
-    <!-- 저장 버튼 -->
-    <Button
-        android:id="@+id/btnSaveQuest"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="퀘스트 저장"
-        android:backgroundTint="#FF9800"
-        android:textColor="#FFFFFF"
-        android:layout_marginBottom="16dp" />
-
-    <!-- 퀘스트 리스트 -->
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:fillViewport="true">
 
         <LinearLayout
-            android:id="@+id/questContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
-    </ScrollView>
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- 🔙 뒤로가기 버튼 -->
+            <Button
+                android:id="@+id/btn_back"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="← 뒤로가기"
+                android:backgroundTint="#607D8B"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="16dp" />
+
+            <!-- 앱 선택 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="앱 선택"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:paddingBottom="4dp" />
+
+            <Spinner
+                android:id="@+id/spinnerAppList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp" />
+
+            <!-- 목표 시간 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="목표 시간(분)"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:paddingBottom="4dp" />
+
+            <EditText
+                android:id="@+id/etTargetMinutes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:hint="예: 30"
+                android:layout_marginBottom="12dp" />
+
+            <!-- 목표 타입 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="목표 타입"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:paddingBottom="4dp" />
+
+            <RadioGroup
+                android:id="@+id/rgGoalType"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp">
+
+                <RadioButton
+                    android:id="@+id/rbBelow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="이하 사용"
+                    android:textColor="#FFFFFF"
+                    android:checked="true" />
+
+                <RadioButton
+                    android:id="@+id/rbAbove"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="이상 사용"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginStart="16dp" />
+            </RadioGroup>
+
+            <!-- 마감일 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="마감 날짜 (yyyy-MM-dd)"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:paddingBottom="4dp" />
+
+            <EditText
+                android:id="@+id/etDeadlineDate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="예: 2025-10-16"
+                android:inputType="date"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="마감 시간 (HH:mm)"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:paddingBottom="4dp" />
+
+            <EditText
+                android:id="@+id/etDeadlineTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="예: 23:59"
+                android:inputType="time"
+                android:layout_marginBottom="16dp" />
+
+            <!-- 저장 버튼 -->
+            <Button
+                android:id="@+id/btnSaveQuest"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="퀘스트 저장"
+                android:backgroundTint="#FF9800"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="16dp" />
+
+            <!-- 퀘스트 리스트 -->
+            <LinearLayout
+                android:id="@+id/questContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="12dp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>

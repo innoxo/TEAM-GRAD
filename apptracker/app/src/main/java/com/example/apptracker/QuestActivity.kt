@@ -36,10 +36,8 @@ class QuestActivity : AppCompatActivity() {
         val btnSave = findViewById<Button>(R.id.btnSaveQuest)
         val btnBack = findViewById<Button>(R.id.btn_back)
 
-        // 🔙 뒤로가기 버튼 (단순 종료)
-        btnBack.setOnClickListener {
-            finish()
-        }
+        // 🔙 뒤로가기 버튼
+        btnBack.setOnClickListener { finish() }
 
         @Suppress("UNCHECKED_CAST")
         usageData = intent.getSerializableExtra("usageData") as? HashMap<String, Int>
@@ -58,8 +56,8 @@ class QuestActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            val selectedPkg = usedApps[selectedIndex]   // ✅ 패키지명
-            val appName = appNames[selectedIndex]       // ✅ 앱 이름
+            val selectedPkg = usedApps[selectedIndex]
+            val appName = appNames[selectedIndex]
             val targetMinutes = etTargetMinutes.text.toString().toIntOrNull() ?: 0
             val goalType =
                 if (rgGoalType.checkedRadioButtonId == R.id.rbBelow) "이하 사용" else "이상 사용"
@@ -76,7 +74,12 @@ class QuestActivity : AppCompatActivity() {
             val quest = QuestItem(appName, selectedPkg, targetMinutes, goalType, deadlineDate, deadlineTime)
             saveQuest(quest)
             Toast.makeText(this, "'$appName' 퀘스트가 저장되었습니다!", Toast.LENGTH_SHORT).show()
-            updateQuestList()
+
+            // ✅ 강제 UI 갱신 (저장 직후 반영)
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(100L)
+                updateQuestList()
+            }
         }
 
         updateQuestList()
@@ -103,7 +106,7 @@ class QuestActivity : AppCompatActivity() {
         }
     }
 
-    /** ✅ 실제 앱 사용 데이터 실시간 가져오기 */
+    /** ✅ 실시간 앱 사용 데이터 가져오기 */
     private fun getRealtimeUsageData(): Map<String, Int> {
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val end = System.currentTimeMillis()
@@ -193,7 +196,7 @@ class QuestActivity : AppCompatActivity() {
         prefs.edit().putString("quests_json", arr.toString()).apply()
     }
 
-    /** ✅ 실시간 사용량 업데이트 + 판정 */
+    /** ✅ 퀘스트 상태 업데이트 및 표시 */
     private fun updateQuestList() {
         val quests = loadQuests()
         questContainer.removeAllViews()
