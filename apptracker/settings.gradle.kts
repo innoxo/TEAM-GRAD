@@ -1,9 +1,9 @@
 pluginManagement {
     repositories {
+        gradlePluginPortal()
         google()
         mavenCentral()
-        gradlePluginPortal()
-        maven(url = "https://jitpack.io") // ✅ 이 줄 추가!
+        maven(url = "https://jitpack.io")
     }
 }
 
@@ -12,7 +12,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven(url = "https://jitpack.io") // ✅ 여기도 추가!
+        maven(url = "https://jitpack.io")
     }
 }
 
