@@ -1,93 +1,96 @@
 package com.example.apptracker
 
+import android.app.Application
 import android.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.PieChart
+import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
-import androidx.compose.ui.graphics.Color as ComposeColor
-import androidx.compose.ui.viewinterop.AndroidView
+import com.github.mikephil.charting.highlight.Highlight
+import com.github.mikephil.charting.listener.OnChartValueSelectedListener
 
+@OptIn(ExperimentalMaterial3Api::class)   // ← 에러 해결 핵심
 @Composable
 fun DashboardScreen(navController: NavHostController) {
 
     val context = LocalContext.current
+    val app = context.applicationContext as Application
 
-    var categoryMinutes by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
-    var totalUsage by remember { mutableStateOf(0) }
-    var totalPoints by remember { mutableStateOf(0) }
+    val viewModel: UsageViewModel = viewModel(
+        factory = UsageViewModelFactory(app)
+    )
 
-    // ✔ 테스트용 데이터
     LaunchedEffect(Unit) {
-        categoryMinutes = mapOf(
-            "공부" to 40,
-            "SNS" to 15,
-            "엔터테인먼트" to 17
-        )
-        totalUsage = 72
-        totalPoints = 0
+        viewModel.loadUsageData()
     }
+
+    val categoryMinutes = viewModel.categoryMinutes
+    val categoryApps = viewModel.categoryApps
+    val totalUsage = viewModel.totalUsage
+
+    var showSheet by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ComposeColor(0xFF00462A))   // ← 배경색 변경
+            .background(ComposeColor(0xFF00462A))
             .padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
+
         Column {
-            Text(
-                "AppTracker",
-                color = ComposeColor.White,
-                style = MaterialTheme.typography.headlineMedium
-            )
 
-            Spacer(Modifier.height(8.dp))
-            Text("오늘 총 사용시간: ${totalUsage}분", color = ComposeColor.LightGray)
-            Text("포인트: ${totalPoints}점", color = ComposeColor.LightGray)
-
-            Spacer(Modifier.height(30.dp))
-
-            Text("카테고리 비율", color = ComposeColor.White)
+            Text("AppTracker", color = ComposeColor.White)
 
             Spacer(Modifier.height(10.dp))
+            Text("오늘 총 사용시간: ${totalUsage}분", color = ComposeColor.White)
 
-            // 원형 차트
+            Spacer(Modifier.height(20.dp))
+            Text("카테고리 비율", color = ComposeColor.White)
+
+            Spacer(Modifier.height(12.dp))
+
+            // -----------------------------
+            // PIE CHART
+            // -----------------------------
             AndroidView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(250.dp),
+                    .height(260.dp),
                 factory = { ctx ->
                     PieChart(ctx).apply {
-                        this.setUsePercentValues(false)
-                        this.description.isEnabled = false
-                        this.setHoleColor(Color.TRANSPARENT)
-                        this.setEntryLabelColor(Color.WHITE)
-                        this.legend.textColor = Color.WHITE
+                        description.isEnabled = false
+                        setHoleColor(Color.TRANSPARENT)
+                        setEntryLabelColor(Color.WHITE)
+                        legend.textColor = Color.WHITE
                     }
                 },
                 update = { chart ->
+
                     if (categoryMinutes.isNotEmpty()) {
-                        val entries = categoryMinutes.map { (cat, value) ->
-                            PieEntry(value.toFloat(), cat)
+
+                        val entries = categoryMinutes.map { (cat, min) ->
+                            PieEntry(min.toFloat(), cat)
                         }
 
                         val dataSet = PieDataSet(entries, "").apply {
                             colors = listOf(
-                                Color.parseColor("#4CAF50"),
-                                Color.parseColor("#03A9F4"),
-                                Color.parseColor("#F44336"),
-                                Color.parseColor("#9C27B0"),
-                                Color.parseColor("#FF9800")
+                                Color.parseColor("#4CAF50"), // 공부
+                                Color.parseColor("#03A9F4"), // SNS
+                                Color.parseColor("#F44336")  // 엔터테인먼트
                             )
                             valueTextColor = Color.WHITE
                             valueTextSize = 14f
@@ -95,19 +98,34 @@ fun DashboardScreen(navController: NavHostController) {
 
                         chart.data = PieData(dataSet)
                         chart.invalidate()
+
+                        chart.setOnChartValueSelectedListener(object :
+                            OnChartValueSelectedListener {
+
+                            // Entry → PieEntry 캐스팅
+                            override fun onValueSelected(e: Entry?, h: Highlight?) {
+                                val pie = e as? PieEntry ?: return
+                                selectedCategory = pie.label
+                                showSheet = true
+                            }
+
+                            override fun onNothingSelected() {}
+                        })
                     }
                 }
             )
         }
 
-        // ───────────── 버튼 두 개 ─────────────
+        // ----------------------------
+        // 버튼 두 개
+        // ----------------------------
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
             Button(
                 onClick = { navController.navigate("quest") },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ComposeColor.White    // ← 버튼 배경 흰색
+                    containerColor = ComposeColor.White
                 )
             ) {
                 Text("퀘스트 보기", color = ComposeColor.Black)
@@ -117,11 +135,33 @@ fun DashboardScreen(navController: NavHostController) {
                 onClick = { navController.navigate("ranking") },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ComposeColor.White    // ← 버튼 배경 흰색
+                    containerColor = ComposeColor.White
                 )
             ) {
                 Text("랭킹 보기", color = ComposeColor.Black)
             }
+        }
+    }
+
+    // ----------------------------
+    // BottomSheet (카테고리 상세)
+    // ----------------------------
+    if (showSheet && selectedCategory != null) {
+
+        val sheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = true
+        )
+
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            sheetState = sheetState,
+            containerColor = ComposeColor(0xFF00462A)
+        ) {
+            CategoryDetailSheet(
+                category = selectedCategory!!,
+                apps = categoryApps[selectedCategory] ?: emptyList(),
+                onClose = { showSheet = false }
+            )
         }
     }
 }
