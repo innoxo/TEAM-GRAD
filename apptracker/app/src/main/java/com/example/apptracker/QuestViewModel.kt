@@ -1,85 +1,98 @@
 package com.example.apptracker
 
-import android.content.Context
+import android.app.Application
 import androidx.compose.runtime.mutableStateListOf
-import androidx.lifecycle.ViewModel
-import org.json.JSONArray
-import org.json.JSONObject
-import java.util.UUID
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
-class QuestViewModel : ViewModel() {
+class QuestViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _active = mutableStateListOf<QuestItem>()
-    val activeQuests: List<QuestItem> get() = _active
+    private val repo = QuestRepository()
+    private val session = QuestSessionManager(application)
 
-    private val _completed = mutableStateListOf<QuestItem>()
-    val completedQuests: List<QuestItem> get() = _completed
+    var activeQuests = mutableStateListOf<QuestItem>()
+    var completedQuests = mutableStateListOf<QuestItem>()
 
-    private val prefsKey = "quests_json"
+    private fun today(): String {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA)
+        return sdf.format(Date())
+    }
 
-    fun loadQuests(context: Context) {
-        val pref = context.getSharedPreferences("AppTracker", Context.MODE_PRIVATE)
-        val json = pref.getString(prefsKey, "[]") ?: "[]"
+    fun loadQuests() = viewModelScope.launch {
+        val quests = repo.loadAllQuests()
 
-        val arr = JSONArray(json)
-        val all = mutableListOf<QuestItem>()
+        activeQuests.clear()
+        completedQuests.clear()
 
-        for (i in 0 until arr.length()) {
-            val o = arr.getJSONObject(i)
-            all.add(
-                QuestItem(
-                    id = o.optString("id", UUID.randomUUID().toString()),
-                    appName = o.getString("appName"),
-                    packageName = o.getString("packageName"),
-                    targetMinutes = o.getInt("targetMinutes"),
-                    goalType = o.getString("goalType"),
-                    deadlineDate = o.getString("deadlineDate"),
-                    deadlineTime = o.getString("deadlineTime"),
-                    currentMinutes = o.optInt("currentMinutes", 0),
-                    completed = o.optBoolean("completed", false)
-                )
-            )
+        quests.forEach {
+            if (it.status == "active") activeQuests.add(it)
+            else completedQuests.add(it)
         }
 
-        _active.clear()
-        _completed.clear()
-
-        _active.addAll(all.filter { !it.completed })
-        _completed.addAll(all.filter { it.completed })
+        activeQuests.sortByDescending { it.startTime }
+        completedQuests.sortByDescending { it.endTime }
     }
 
-    private fun save(context: Context) {
-        val all = (_active + _completed)
+    fun createQuest(
+        pkg: String,
+        appName: String,
+        condition: String,
+        goal: Int,
+        startTime: Long,
+        endTime: Long
+    ) {
+        val id = System.currentTimeMillis().toString()
 
-        val arr = JSONArray()
-        all.forEach {
-            val o = JSONObject()
-            o.put("id", it.id)
-            o.put("appName", it.appName)
-            o.put("packageName", it.packageName)
-            o.put("targetMinutes", it.targetMinutes)
-            o.put("goalType", it.goalType)
-            o.put("deadlineDate", it.deadlineDate)
-            o.put("deadlineTime", it.deadlineTime)
-            o.put("currentMinutes", it.currentMinutes)
-            o.put("completed", it.completed)
-            arr.put(o)
+        val quest = QuestItem(
+            id = id,
+            targetPackage = pkg,
+            appName = appName,
+            conditionType = condition,
+            goalMinutes = goal,
+            startTime = startTime,
+            endTime = endTime,
+            createdDate = today()
+        )
+
+        activeQuests.add(0, quest)
+
+        viewModelScope.launch {
+            repo.saveQuest(today(), quest)
         }
-
-        context.getSharedPreferences("AppTracker", Context.MODE_PRIVATE)
-            .edit().putString(prefsKey, arr.toString()).apply()
     }
 
-    fun deleteQuest(context: Context, quest: QuestItem) {
-        _active.removeIf { it.id == quest.id }
-        _completed.removeIf { it.id == quest.id }
-        save(context)
+    fun updateProgress() = viewModelScope.launch {
+        val now = System.currentTimeMillis()
+
+        activeQuests.forEachIndexed { idx, q ->
+            if (now > q.endTime) return@forEachIndexed
+
+            val used = session.measureAppUsage(q.startTime, now, q.targetPackage)
+            val updated = q.copy(progressMinutes = used)
+            activeQuests[idx] = updated
+
+            repo.saveQuest(q.createdDate, updated)
+        }
     }
 
-    fun toggleComplete(context: Context, quest: QuestItem) {
-        quest.completed = true
-        _active.removeIf { it.id == quest.id }
-        _completed.add(quest)
-        save(context)
+    fun markCompleted(q: QuestItem) = viewModelScope.launch {
+        activeQuests.removeAll { it.id == q.id }
+        val done = q.copy(status = "completed")
+
+        completedQuests.add(0, done)
+        repo.saveQuest(done.createdDate, done)
+    }
+
+    fun deleteCompleted(id: String) = viewModelScope.launch {
+        completedQuests.removeAll { it.id == id }
+        repo.deleteQuest(today(), id)
+    }
+
+    fun cancelQuest(id: String) = viewModelScope.launch {
+        activeQuests.removeAll { it.id == id }
+        repo.deleteQuest(today(), id)
     }
 }
