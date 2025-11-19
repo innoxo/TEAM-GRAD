@@ -37,10 +37,24 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 val navController = rememberNavController()
 
-                NavHost(navController = navController, startDestination = "dashboard") {
-                    composable("dashboard") { DashboardScreen(navController) }
-                    composable("quest") { QuestScreen(navController) }
-                    composable("ranking") { RankingScreen(navController) }
+                NavHost(
+                    navController = navController,
+                    startDestination = "dashboard"
+                ) {
+                    composable("dashboard") {
+                        DashboardScreen(navController)
+                    }
+                    composable("quest") {
+                        QuestScreen(navController)
+                    }
+                    composable("ranking") {
+                        RankingScreen(navController)
+                    }
+
+                    // 🔥 반드시 추가해야 하는 라우트 (여기 없어서 앱이 계속 죽은 것)
+                    composable("quest_create") {
+                        QuestCreateScreen(navController)
+                    }
                 }
             }
         }

@@ -14,6 +14,14 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 
 /* ----------------------------------------------------
+   공통 색상
+----------------------------------------------------- */
+private val BgColor = Color(0xFF00462A)        // 배경
+private val SurfaceColor = Color.White         // 카드/버튼
+private val TextPrimary = Color.Black          // 텍스트
+private val TextSecondary = Color(0xFF444444)  // 서브 텍스트
+
+/* ----------------------------------------------------
    RankingScreen
 ----------------------------------------------------- */
 @Composable
@@ -30,17 +38,17 @@ fun RankingScreen(navController: NavHostController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppColors.Background)
+            .background(BgColor)
             .padding(16.dp)
     ) {
 
         // 🔙 뒤로가기 버튼
         Button(
             onClick = { navController.popBackStack() },
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Surface),
+            colors = ButtonDefaults.buttonColors(containerColor = SurfaceColor),
             modifier = Modifier.align(Alignment.Start)
         ) {
-            Text("뒤로가기", color = Color.Black)   // 버튼 텍스트 블랙
+            Text("뒤로가기", color = TextPrimary)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -58,14 +66,14 @@ fun RankingScreen(navController: NavHostController) {
         -------------------------------- */
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = AppColors.Surface)
+            colors = CardDefaults.cardColors(containerColor = SurfaceColor)
         ) {
             Column(Modifier.padding(16.dp)) {
-                Text("내 정보", color = AppColors.TextPrimary, fontWeight = FontWeight.Bold)
+                Text("내 정보", color = TextPrimary, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text("이름: ${myRank.username}", color = AppColors.TextPrimary)
-                Text("랭킹: ${myRank.rank}위", color = AppColors.TextPrimary)
-                Text("포인트: ${myRank.points}점", color = AppColors.TextPrimary)
+                Text("이름: ${myRank.username}", color = TextPrimary)
+                Text("랭킹: ${myRank.rank}위", color = TextPrimary)
+                Text("포인트: ${myRank.points}점", color = TextPrimary)
             }
         }
 
@@ -98,7 +106,7 @@ fun RankCard(item: RankItem) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = AppColors.Surface)
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor)
     ) {
         Row(
             Modifier
@@ -107,10 +115,10 @@ fun RankCard(item: RankItem) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text("${item.rank}위", color = AppColors.TextPrimary, fontWeight = FontWeight.Bold)
-                Text(item.username, color = AppColors.TextSecondary)
+                Text("${item.rank}위", color = TextPrimary, fontWeight = FontWeight.Bold)
+                Text(item.username, color = TextSecondary)
             }
-            Text("${item.points}점", color = AppColors.TextPrimary, fontWeight = FontWeight.Bold)
+            Text("${item.points}점", color = TextPrimary, fontWeight = FontWeight.Bold)
         }
     }
 }
