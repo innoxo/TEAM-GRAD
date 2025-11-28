@@ -54,9 +54,11 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
 
+    // 🔥 Firebase BOM & Auth & Database 추가
     implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
-    implementation("com.google.firebase:firebase-database")
-    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-auth-ktx")        // 추가됨
+    implementation("com.google.firebase:firebase-database-ktx")    // KTX 버전으로 수정
+    implementation("com.google.firebase:firebase-analytics-ktx")
 
     implementation(platform("androidx.compose:compose-bom:2024.09.00"))
     implementation("androidx.compose.ui:ui")

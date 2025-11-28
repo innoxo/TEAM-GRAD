@@ -13,7 +13,6 @@ fun QuestCard(
     onComplete: () -> Unit,
     onCancel: () -> Unit
 ) {
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -24,8 +23,11 @@ fun QuestCard(
     ) {
         Column(Modifier.padding(16.dp)) {
 
-            Text(quest.appName, color = Color.Black)
-            Text("${quest.progressMinutes} / ${quest.goalMinutes}분", color = Color.DarkGray)
+            Text(quest.appName, color = Color.Black, style = MaterialTheme.typography.titleMedium)
+
+            val goalText = if (quest.conditionType == "≤") "이하" else "이상"
+            Text("목표: ${quest.goalMinutes}분 $goalText", color = Color.DarkGray)
+            Text("현재: ${quest.progressMinutes}분", color = Color(0xFF00462A))
 
             Spacer(Modifier.height(8.dp))
 
@@ -62,8 +64,9 @@ fun CompletedQuestCard(
     ) {
         Column(Modifier.padding(16.dp)) {
 
-            Text(quest.appName, color = Color.Black)
-            Text("달성시간: ${quest.progressMinutes}분")
+            Text(quest.appName, color = Color.Black, style = MaterialTheme.typography.titleMedium)
+            Text("최종 달성: ${quest.progressMinutes}분", color = Color.DarkGray)
+            Text("상태: 완료됨", color = Color(0xFF006400))
 
             Spacer(Modifier.height(8.dp))
 
@@ -71,7 +74,7 @@ fun CompletedQuestCard(
                 onClick = onDelete,
                 colors = ButtonDefaults.buttonColors(Color.White)
             ) {
-                Text("삭제", color = Color.Black)
+                Text("기록 삭제", color = Color.Black)
             }
         }
     }

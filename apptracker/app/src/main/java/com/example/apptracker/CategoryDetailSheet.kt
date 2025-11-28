@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -19,13 +19,13 @@ fun CategoryDetailSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(ComposeColor(0xFF00462A))
+            .background(Color(0xFF00462A))
             .padding(16.dp)
     ) {
 
         Text(
             text = "$category 앱 목록",
-            color = ComposeColor.White,
+            color = Color.White,
             style = MaterialTheme.typography.titleLarge
         )
 
@@ -38,8 +38,8 @@ fun CategoryDetailSheet(
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
                 ) {
-                    Text(app.appName, color = ComposeColor.White)
-                    Text("${app.minutes}분 사용", color = ComposeColor.LightGray)
+                    Text(app.appName, color = Color.White)
+                    Text("${app.minutes}분 사용", color = Color.LightGray)
                 }
             }
         }
@@ -50,10 +50,10 @@ fun CategoryDetailSheet(
             onClick = onClose,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = ComposeColor.White
+                containerColor = Color.White
             )
         ) {
-            Text("닫기", color = ComposeColor.Black)
+            Text("닫기", color = Color.Black)
         }
     }
 }

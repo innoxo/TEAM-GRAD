@@ -1,7 +1,6 @@
 package com.example.apptracker
 
 import android.app.AppOpsManager
-import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -15,14 +14,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 
-class MainActivity : ComponentActivity() {
+// 👇 [수정됨] 같은 패키지 안에 있는 파일들은 import가 필요 없어서 삭제했습니다.
 
-    private lateinit var usageStatsManager: UsageStatsManager
+class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
 
         if (!hasUsageAccess()) {
             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
@@ -35,12 +32,16 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
+
                 val navController = rememberNavController()
 
                 NavHost(
                     navController = navController,
-                    startDestination = "dashboard"
+                    startDestination = "nickname_setup"
                 ) {
+                    composable("nickname_setup") {
+                        NicknameSetupScreen(navController)
+                    }
                     composable("dashboard") {
                         DashboardScreen(navController)
                     }
@@ -50,8 +51,6 @@ class MainActivity : ComponentActivity() {
                     composable("ranking") {
                         RankingScreen(navController)
                     }
-
-                    // 🔥 반드시 추가해야 하는 라우트 (여기 없어서 앱이 계속 죽은 것)
                     composable("quest_create") {
                         QuestCreateScreen(navController)
                     }
@@ -60,7 +59,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 앱 사용량 권한 확인 */
     private fun hasUsageAccess(): Boolean {
         return try {
             val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager

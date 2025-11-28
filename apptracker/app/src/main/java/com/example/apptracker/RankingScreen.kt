@@ -5,35 +5,53 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.google.firebase.database.*
 
-/* ----------------------------------------------------
-   공통 색상
------------------------------------------------------ */
-private val BgColor = Color(0xFF00462A)        // 배경
-private val SurfaceColor = Color.White         // 카드/버튼
-private val TextPrimary = Color.Black          // 텍스트
-private val TextSecondary = Color(0xFF444444)  // 서브 텍스트
+private val BgColor = Color(0xFF00462A)
+private val SurfaceColor = Color.White
+private val TextPrimary = Color.Black
+private val TextSecondary = Color(0xFF444444)
 
-/* ----------------------------------------------------
-   RankingScreen
------------------------------------------------------ */
 @Composable
 fun RankingScreen(navController: NavHostController) {
 
-    val rankingList = listOf(
-        RankItem("demo_user", 1, 350),
-        RankItem("user_B", 2, 240),
-        RankItem("user_C", 3, 120)
-    )
+    val db = FirebaseDatabase.getInstance(
+        "https://apptrackerdemo-569ea-default-rtdb.firebaseio.com"
+    ).reference
 
-    val myRank = rankingList.first()
+    var rankingList by remember { mutableStateOf(listOf<RankItem>()) }
+    var myRank by remember { mutableStateOf<RankItem?>(null) }
+    val currentNickname = UserSession.nickname
+
+    LaunchedEffect(true) {
+        db.child("users").addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val tempList = mutableListOf<RankItem>()
+
+                snapshot.children.forEach { userSnapshot ->
+                    val name = userSnapshot.key ?: return
+                    val points = userSnapshot.child("score").getValue(Int::class.java) ?: 0
+                    tempList.add(RankItem(name, 0, points))
+                }
+
+                val sorted = tempList.sortedByDescending { it.points }
+                val ranked = sorted.mapIndexed { index, item ->
+                    item.copy(rank = index + 1)
+                }
+
+                rankingList = ranked
+                myRank = ranked.find { it.username == currentNickname }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
+    }
 
     Column(
         modifier = Modifier
@@ -41,8 +59,6 @@ fun RankingScreen(navController: NavHostController) {
             .background(BgColor)
             .padding(16.dp)
     ) {
-
-        // 🔙 뒤로가기 버튼
         Button(
             onClick = { navController.popBackStack() },
             colors = ButtonDefaults.buttonColors(containerColor = SurfaceColor),
@@ -61,19 +77,18 @@ fun RankingScreen(navController: NavHostController) {
 
         Spacer(Modifier.height(20.dp))
 
-        /* -------------------------------
-           내 랭킹 카드
-        -------------------------------- */
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = SurfaceColor)
-        ) {
-            Column(Modifier.padding(16.dp)) {
-                Text("내 정보", color = TextPrimary, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Text("이름: ${myRank.username}", color = TextPrimary)
-                Text("랭킹: ${myRank.rank}위", color = TextPrimary)
-                Text("포인트: ${myRank.points}점", color = TextPrimary)
+        if (myRank != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = SurfaceColor)
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("내 정보", color = TextPrimary, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("이름: ${myRank!!.username}", color = TextPrimary)
+                    Text("랭킹: ${myRank!!.rank}위", color = TextPrimary)
+                    Text("포인트: ${myRank!!.points}점", color = TextPrimary)
+                }
             }
         }
 
@@ -87,9 +102,6 @@ fun RankingScreen(navController: NavHostController) {
 
         Spacer(Modifier.height(8.dp))
 
-        /* -------------------------------
-           랭킹 리스트
-        -------------------------------- */
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(rankingList) { item ->
                 RankCard(item)
@@ -98,20 +110,14 @@ fun RankingScreen(navController: NavHostController) {
     }
 }
 
-/* ----------------------------------------------------
-   RankCard
------------------------------------------------------ */
 @Composable
 fun RankCard(item: RankItem) {
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = SurfaceColor)
     ) {
         Row(
-            Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            Modifier.padding(16.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
@@ -123,9 +129,6 @@ fun RankCard(item: RankItem) {
     }
 }
 
-/* ----------------------------------------------------
-   RankItem 데이터
------------------------------------------------------ */
 data class RankItem(
     val username: String,
     val rank: Int,

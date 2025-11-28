@@ -6,13 +6,19 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.database.FirebaseDatabase // 🔥 Firebase 추가
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val gpt = OpenAIService()
+    private val gpt = OpenAIService(application)
+
+    // 🔥 점수 저장을 위한 DB 참조 추가
+    private val db = FirebaseDatabase.getInstance(
+        "https://apptrackerdemo-569ea-default-rtdb.firebaseio.com"
+    ).reference
 
     var categoryMinutes: MutableMap<String, Int> = mutableMapOf()
         private set
@@ -44,6 +50,7 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
             withContext(Dispatchers.IO) {
                 stats?.forEach { stat ->
+
                     val minutes = (stat.totalTimeInForeground / 60000L).toInt()
                     if (minutes < 1) return@forEach
 
@@ -56,9 +63,9 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     val category = try {
-                        gpt.classifyApp(appName)
+                        gpt.classifyApp(pkg)
                     } catch (e: Exception) {
-                        "엔터테인먼트"
+                        "기타"
                     }
 
                     localCategoryMinutes[category] =
@@ -79,6 +86,15 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
             categoryMinutes = localCategoryMinutes
             categoryApps = localCategoryApps
             totalUsage = total
+
+            // -------------------------------------------------------------
+            // 🔥 [추가된 부분] 총 사용 시간이 계산되면 바로 Firebase 점수로 저장!
+            // -------------------------------------------------------------
+            val nickname = UserSession.nickname
+            if (nickname.isNotBlank()) {
+                // users -> 닉네임 -> score 경로에 totalUsage(분) 저장
+                db.child("users").child(nickname).child("score").setValue(total)
+            }
         }
     }
 }

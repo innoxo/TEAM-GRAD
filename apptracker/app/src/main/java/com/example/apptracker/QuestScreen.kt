@@ -52,12 +52,16 @@ fun QuestScreen(
 
         Spacer(Modifier.height(20.dp))
 
-        TabRow(selectedTabIndex = tabIndex) {
+        TabRow(
+            selectedTabIndex = tabIndex,
+            containerColor = Color(0xFF00462A),
+            contentColor = Color.White
+        ) {
             tabs.forEachIndexed { index, text ->
                 Tab(
                     selected = tabIndex == index,
                     onClick = { tabIndex = index },
-                    text = { Text(text, color = Color.White) }
+                    text = { Text(text, color = if (tabIndex == index) Color.White else Color.Gray) }
                 )
             }
         }

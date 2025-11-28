@@ -10,9 +10,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import androidx.compose.ui.viewinterop.AndroidView
 import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.PieData
@@ -21,7 +21,7 @@ import com.github.mikephil.charting.data.PieEntry
 import com.github.mikephil.charting.highlight.Highlight
 import com.github.mikephil.charting.listener.OnChartValueSelectedListener
 
-@OptIn(ExperimentalMaterial3Api::class)   // ← 에러 해결 핵심
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(navController: NavHostController) {
 
@@ -52,8 +52,7 @@ fun DashboardScreen(navController: NavHostController) {
     ) {
 
         Column {
-
-            Text("AppTracker", color = ComposeColor.White)
+            Text("AppTracker", color = ComposeColor.White, style = MaterialTheme.typography.titleLarge)
 
             Spacer(Modifier.height(10.dp))
             Text("오늘 총 사용시간: ${totalUsage}분", color = ComposeColor.White)
@@ -79,9 +78,7 @@ fun DashboardScreen(navController: NavHostController) {
                     }
                 },
                 update = { chart ->
-
                     if (categoryMinutes.isNotEmpty()) {
-
                         val entries = categoryMinutes.map { (cat, min) ->
                             PieEntry(min.toFloat(), cat)
                         }
@@ -90,7 +87,9 @@ fun DashboardScreen(navController: NavHostController) {
                             colors = listOf(
                                 Color.parseColor("#4CAF50"), // 공부
                                 Color.parseColor("#03A9F4"), // SNS
-                                Color.parseColor("#F44336")  // 엔터테인먼트
+                                Color.parseColor("#F44336"), // 엔터테인먼트
+                                Color.parseColor("#FFC107"), // 생산
+                                Color.parseColor("#9E9E9E")  // 기타
                             )
                             valueTextColor = Color.WHITE
                             valueTextSize = 14f
@@ -99,16 +98,12 @@ fun DashboardScreen(navController: NavHostController) {
                         chart.data = PieData(dataSet)
                         chart.invalidate()
 
-                        chart.setOnChartValueSelectedListener(object :
-                            OnChartValueSelectedListener {
-
-                            // Entry → PieEntry 캐스팅
+                        chart.setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
                             override fun onValueSelected(e: Entry?, h: Highlight?) {
                                 val pie = e as? PieEntry ?: return
                                 selectedCategory = pie.label
                                 showSheet = true
                             }
-
                             override fun onNothingSelected() {}
                         })
                     }
@@ -120,13 +115,10 @@ fun DashboardScreen(navController: NavHostController) {
         // 버튼 두 개
         // ----------------------------
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-
             Button(
                 onClick = { navController.navigate("quest") },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ComposeColor.White
-                )
+                colors = ButtonDefaults.buttonColors(containerColor = ComposeColor.White)
             ) {
                 Text("퀘스트 보기", color = ComposeColor.Black)
             }
@@ -134,9 +126,7 @@ fun DashboardScreen(navController: NavHostController) {
             Button(
                 onClick = { navController.navigate("ranking") },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ComposeColor.White
-                )
+                colors = ButtonDefaults.buttonColors(containerColor = ComposeColor.White)
             ) {
                 Text("랭킹 보기", color = ComposeColor.Black)
             }
@@ -147,10 +137,7 @@ fun DashboardScreen(navController: NavHostController) {
     // BottomSheet (카테고리 상세)
     // ----------------------------
     if (showSheet && selectedCategory != null) {
-
-        val sheetState = rememberModalBottomSheetState(
-            skipPartiallyExpanded = true
-        )
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
         ModalBottomSheet(
             onDismissRequest = { showSheet = false },

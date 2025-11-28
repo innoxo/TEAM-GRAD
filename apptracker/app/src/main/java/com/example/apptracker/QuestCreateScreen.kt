@@ -25,12 +25,15 @@ fun QuestCreateScreen(
     val context = LocalContext.current
     val app = context.applicationContext as Application
 
+    // 뷰모델 생성 (Factory 사용)
     val vm: QuestCreateViewModel = viewModel(
         factory = QuestCreateViewModelFactory(app)
     )
 
+    // 화면 진입 시 설치된 앱 목록 로드
     LaunchedEffect(Unit) { vm.loadInstalledApps() }
 
+    // 상태 관찰 (StateFlow -> State)
     val appList = vm.appList.collectAsState()
     val selected = vm.selectedApp.collectAsState()
     val condition = vm.conditionType.collectAsState()
@@ -44,6 +47,7 @@ fun QuestCreateScreen(
             .background(Color(0xFF00462A))
             .padding(16.dp)
     ) {
+        // 뒤로가기 버튼
         Button(
             onClick = { navController.popBackStack() },
             colors = ButtonDefaults.buttonColors(containerColor = Color.White)
@@ -59,6 +63,7 @@ fun QuestCreateScreen(
         Text("앱 선택", color = Color.White)
         Spacer(Modifier.height(8.dp))
 
+        // 앱 목록 리스트
         LazyColumn(
             modifier = Modifier
                 .height(180.dp)
@@ -130,6 +135,7 @@ fun QuestCreateScreen(
 
         Spacer(Modifier.height(20.dp))
 
+        // 생성 버튼
         Button(
             onClick = {
                 vm.createQuest()
