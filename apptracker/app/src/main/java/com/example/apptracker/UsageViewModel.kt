@@ -10,6 +10,8 @@ import com.google.firebase.database.FirebaseDatabase // 🔥 Firebase 추가
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow // 하루 한줄 요약용 추가
+import kotlinx.coroutines.flow.asStateFlow     // 하루 한줄 요약용 추가
 
 class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -28,6 +30,10 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
     var totalUsage = 0
         private set
+
+    // 추가된 부분: UI가 관찰할 요약 메시지 상태 변수
+    private val _dailySummary = MutableStateFlow<String>("오늘의 분석을 기다리고 있어요...")
+    val dailySummary = _dailySummary.asStateFlow()
 
     fun loadUsageData() {
         viewModelScope.launch {
@@ -94,6 +100,19 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
             if (nickname.isNotBlank()) {
                 // users -> 닉네임 -> score 경로에 totalUsage(분) 저장
                 db.child("users").child(nickname).child("score").setValue(total)
+            }
+
+            // 추가된 부분: 데이터가 있으면 요약 요청
+            if (localCategoryMinutes.isNotEmpty()) {
+                // 백그라운드에서 GPT 호출
+                val summary = try {
+                    gpt.getDailySummary(localCategoryMinutes)
+                } catch (e: Exception) {
+                    "요약을 불러오지 못했습니다."
+                }
+                _dailySummary.value = summary
+            } else {
+                _dailySummary.value = "오늘 사용 기록이 없습니다."
             }
         }
     }

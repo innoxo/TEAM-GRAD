@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -28,25 +29,32 @@ fun DashboardScreen(navController: NavHostController) {
     val context = LocalContext.current
     val app = context.applicationContext as Application
 
+    // 뷰모델 생성 (팩토리 사용)
     val viewModel: UsageViewModel = viewModel(
         factory = UsageViewModelFactory(app)
     )
 
+    // 화면 진입 시 데이터 로드
     LaunchedEffect(Unit) {
         viewModel.loadUsageData()
     }
 
+    // 뷰모델 상태 관찰
     val categoryMinutes = viewModel.categoryMinutes
     val categoryApps = viewModel.categoryApps
     val totalUsage = viewModel.totalUsage
+    
+    //추가된 부분: 요약 메시지 상태 관찰
+    val dailySummary by viewModel.dailySummary.collectAsState()
 
+    // 바텀시트 상태 관리
     var showSheet by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ComposeColor(0xFF00462A))
+            .background(ComposeColor(0xFF00462A)) // 짙은 녹색 배경
             .padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -57,13 +65,35 @@ fun DashboardScreen(navController: NavHostController) {
             Spacer(Modifier.height(10.dp))
             Text("오늘 총 사용시간: ${totalUsage}분", color = ComposeColor.White)
 
+            // 추가된 부분: 하루 한 줄 요약 카드 UI
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = ComposeColor(0xFFE8F5E9)), // 연한 초록색 배경
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "📢 오늘의 한 줄 요약",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = ComposeColor(0xFF2E7D32) // 진한 초록색 텍스트
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = dailySummary, // 뷰모델에서 가져온 실제 메시지 표시
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ComposeColor.Black
+                    )
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
             Text("카테고리 비율", color = ComposeColor.White)
 
             Spacer(Modifier.height(12.dp))
 
             // -----------------------------
-            // PIE CHART
+            // PIE CHART (MPAndroidChart)
             // -----------------------------
             AndroidView(
                 modifier = Modifier
@@ -75,6 +105,7 @@ fun DashboardScreen(navController: NavHostController) {
                         setHoleColor(Color.TRANSPARENT)
                         setEntryLabelColor(Color.WHITE)
                         legend.textColor = Color.WHITE
+                        legend.isEnabled = true
                     }
                 },
                 update = { chart ->
@@ -93,11 +124,13 @@ fun DashboardScreen(navController: NavHostController) {
                             )
                             valueTextColor = Color.WHITE
                             valueTextSize = 14f
+                            sliceSpace = 2f
                         }
 
                         chart.data = PieData(dataSet)
-                        chart.invalidate()
+                        chart.invalidate() // 차트 갱신
 
+                        // 차트 클릭 리스너 (카테고리 상세 보기)
                         chart.setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
                             override fun onValueSelected(e: Entry?, h: Highlight?) {
                                 val pie = e as? PieEntry ?: return
@@ -112,7 +145,7 @@ fun DashboardScreen(navController: NavHostController) {
         }
 
         // ----------------------------
-        // 버튼 두 개
+        // 하단 버튼 영역
         // ----------------------------
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Button(
@@ -134,7 +167,7 @@ fun DashboardScreen(navController: NavHostController) {
     }
 
     // ----------------------------
-    // BottomSheet (카테고리 상세)
+    // BottomSheet (카테고리 상세 정보)
     // ----------------------------
     if (showSheet && selectedCategory != null) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -142,7 +175,7 @@ fun DashboardScreen(navController: NavHostController) {
         ModalBottomSheet(
             onDismissRequest = { showSheet = false },
             sheetState = sheetState,
-            containerColor = ComposeColor(0xFF00462A)
+            containerColor = ComposeColor(0xFF00462A) // 바텀시트 배경색 통일
         ) {
             CategoryDetailSheet(
                 category = selectedCategory!!,
