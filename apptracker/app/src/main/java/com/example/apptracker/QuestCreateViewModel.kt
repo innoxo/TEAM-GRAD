@@ -2,22 +2,27 @@ package com.example.apptracker
 
 import android.app.Application
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
 class QuestCreateViewModel(application: Application) : AndroidViewModel(application) {
 
     private val pm = application.packageManager
-    private val repo = QuestRepository()
+    private val repo = QuestRepository() // Repository 활용
 
     private val _appList = MutableStateFlow<List<App>>(emptyList())
     val appList = _appList.asStateFlow()
+
+    // ✨ [추가] 추천된 앱 리스트
+    private val _recommendedApps = MutableStateFlow<List<App>>(emptyList())
+    val recommendedApps = _recommendedApps.asStateFlow()
 
     private val _selectedApp = MutableStateFlow<App?>(null)
     val selectedApp = _selectedApp.asStateFlow()
@@ -36,18 +41,34 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
 
     fun loadInstalledApps() {
         viewModelScope.launch {
-            val apps = pm.getInstalledApplications(0)
-                .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
-                .map {
-                    App(
-                        appName = pm.getApplicationLabel(it).toString(),
-                        packageName = it.packageName
-                    )
-                }
-                .sortedBy { it.appName }
-
+            // 1. 설치된 앱 로드
+            val apps = withContext(Dispatchers.IO) {
+                pm.getInstalledApplications(0)
+                    .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 }
+                    .map {
+                        App(
+                            appName = pm.getApplicationLabel(it).toString(),
+                            packageName = it.packageName
+                        )
+                    }
+                    .sortedBy { it.appName }
+            }
             _appList.value = apps
+
+            // 2. ✨ [추가] 추천 알고리즘 실행
+            loadRecommendations(apps)
         }
+    }
+
+    // ✨ [추가] 군집화 기반 추천 실행 함수
+    private suspend fun loadRecommendations(allApps: List<App>) {
+        val history = repo.loadAllQuests() // 기존 퀘스트 기록 로드
+        
+        // 백그라운드에서 계산 (무거운 작업일 수 있음)
+        val recommendations = withContext(Dispatchers.Default) {
+            AppClusteringEngine.getRecommendedApps(allApps, history)
+        }
+        _recommendedApps.value = recommendations
     }
 
     fun selectApp(app: App) {
@@ -78,12 +99,11 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
     fun createQuest() {
         val app = selectedApp.value ?: return
 
-        // 음수나 이상한 값 들어왔을 때 방어
+        // 음수 방어
         val safeTargetMinutes = if (targetMinutes.value < 0) 0 else targetMinutes.value
         val safeStartHour = startHour.value.coerceIn(0, 23)
         val safeEndHour = endHour.value.coerceIn(0, 23)
 
-        // 오늘 날짜 기준으로 시간 설정
         val now = Calendar.getInstance().apply {
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
@@ -96,7 +116,6 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         val endCal = now.clone() as Calendar
         endCal.set(Calendar.HOUR_OF_DAY, safeEndHour)
 
-        // 종료 시간이 시작 시간보다 이르면 다음날로 넘김 (크래시 방지)
         if (endCal.timeInMillis <= startCal.timeInMillis) {
             endCal.add(Calendar.DAY_OF_MONTH, 1)
         }
