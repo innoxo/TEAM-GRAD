@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -14,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -36,129 +38,246 @@ fun QuestCreateScreen(
     LaunchedEffect(Unit) { vm.loadInstalledApps() }
 
     val appList = vm.appList.collectAsState()
-    val recommendedApps = vm.recommendedApps.collectAsState() // ✨ 추천 앱 상태
+    val recommendedApps = vm.recommendedApps.collectAsState() // 추가된 기능: 추천 퀘스트 (앱)
     val selected = vm.selectedApp.collectAsState()
     val condition = vm.conditionType.collectAsState()
     val minutes = vm.targetMinutes.collectAsState()
+
     val startHour = vm.startHour.collectAsState()
+    val startMinute = vm.startMinute.collectAsState()
     val endHour = vm.endHour.collectAsState()
+    val endMinute = vm.endMinute.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF00462A))
-            .padding(16.dp)
-    ) {
-        Button(
-            onClick = { navController.popBackStack() },
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White)
-        ) {
-            Text("뒤로가기", color = Color.Black)
-        }
+    // 로딩 상태 (저장 중인지?)
+    val isLoading = vm.isLoading.collectAsState()
 
-        Spacer(Modifier.height(10.dp))
-        Text("퀘스트 생성", color = Color.White, style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(10.dp))
-
-        // ✨ [추가] AI 추천 섹션
-        if (recommendedApps.value.isNotEmpty()) {
-            Text("🤖 AI 맞춤 추천 (최근 활동 기반)", color = Color(0xFF81C784), fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+    // Scaffold 구조 (하단 버튼 고정 및 디자인 통일)
+    Scaffold(
+        containerColor = Color(0xFF00462A),
+        bottomBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF00462A))
+                    .padding(16.dp)
+                    .windowInsetsPadding(WindowInsets.safeGestures)
             ) {
-                items(recommendedApps.value) { recApp ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-                        modifier = Modifier.clickable { vm.selectApp(recApp) }
-                    ) {
-                        Text(
-                            text = recApp.appName,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            color = Color(0xFF00462A),
-                            fontWeight = FontWeight.Bold
-                        )
+                Button(
+                    onClick = {
+                        vm.createQuest {
+                            navController.popBackStack()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = !isLoading.value // 로딩 중엔 클릭 방지
+                ) {
+                    if (isLoading.value) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black)
+                    } else {
+                        Text("퀘스트 만들기", color = Color.Black, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
-            Spacer(Modifier.height(20.dp))
         }
+    ) { paddingValues ->
 
-        Text("전체 앱 선택", color = Color.White)
-        Spacer(Modifier.height(8.dp))
-
+        // 전체를 하나의 LazyColumn으로 감싸서 스크롤 충돌 해결
         LazyColumn(
             modifier = Modifier
-                .height(150.dp) // 높이 약간 조절
-                .background(Color(0xFF003A20))
-                .padding(6.dp)
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp)
         ) {
+            item {
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = { navController.popBackStack() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("뒤로가기", color = Color.Black)
+                }
+                Spacer(Modifier.height(20.dp))
+                Text("퀘스트 생성", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(20.dp))
+
+                // AI 맞춤 추천 섹션
+                if (recommendedApps.value.isNotEmpty()) {
+                    Text("🤖 AI 맞춤 추천 (최근 활동 기반)", color = Color(0xFF81C784), fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(recommendedApps.value) { recApp ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                                modifier = Modifier.clickable { vm.selectApp(recApp) }
+                            ) {
+                                Text(
+                                    text = recApp.appName,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    color = Color(0xFF00462A),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+
+                Text("앱 선택 (터치하세요)", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // 앱 리스트 (디자인: 체크 표시 및 둥근 모서리 적용)
             items(appList.value) { appItem ->
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(2.dp)
-                        .background(
-                            if (selected.value == appItem) Color(0xFF1B5E20) else Color.Transparent
-                        )
-                        .padding(8.dp)
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selected.value == appItem) Color(0xFF4CAF50) else Color(0xFF003A20))
                         .clickable { vm.selectApp(appItem) }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(appItem.appName, color = Color.White, fontSize = 14.sp)
+                    Text(appItem.appName, color = Color.White)
+                    if (selected.value == appItem) {
+                        Spacer(Modifier.weight(1f))
+                        Text("✔", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-        }
 
-        // ... 이하 기존 UI 코드 유지 ...
-        Spacer(Modifier.height(20.dp))
-        Text("조건", color = Color.White)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = condition.value == "≤", onClick = { vm.setCondition("≤") })
-            Text("이하", color = Color.White)
-            Spacer(Modifier.width(20.dp))
-            RadioButton(selected = condition.value == "≥", onClick = { vm.setCondition("≥") })
-            Text("이상", color = Color.White)
-        }
+            // 조건 및 시간 설정 섹션 (UX: 휠 피커 적용)
+            item {
+                Spacer(Modifier.height(24.dp))
 
-        Spacer(Modifier.height(10.dp))
-        Text("목표 시간 (분)", color = Color.White)
-        OutlinedTextField(
-            value = minutes.value.toString(),
-            onValueChange = { vm.setTargetMinutes(it.toIntOrNull() ?: 0) },
-            modifier = Modifier.fillMaxWidth().background(Color.White)
-        )
+                // 목표 시간 & 조건
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.width(120.dp)) {
+                        Text("목표 시간(분)", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = minutes.value.toString(),
+                            onValueChange = { vm.setTargetMinutes(it.toIntOrNull() ?: 0) },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
 
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f)) {
-                Text("시작 (0~23)", color = Color.White)
-                OutlinedTextField(
-                    value = startHour.value.toString(),
-                    onValueChange = { vm.setStartHour(it.toIntOrNull() ?: 0) },
-                    modifier = Modifier.fillMaxWidth().background(Color.White)
-                )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("성공 조건", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = condition.value == "≤",
+                                onClick = { vm.setCondition("≤") },
+                                colors = RadioButtonDefaults.colors(selectedColor = Color.White, unselectedColor = Color.Gray)
+                            )
+                            Text("이하", color = Color.White)
+                            Spacer(Modifier.width(4.dp))
+                            RadioButton(
+                                selected = condition.value == "≥",
+                                onClick = { vm.setCondition("≥") },
+                                colors = RadioButtonDefaults.colors(selectedColor = Color.White, unselectedColor = Color.Gray)
+                            )
+                            Text("이상", color = Color.White)
+                        }
+                    }
+                }
+
+                // 시작 시간 (휠 피커)
+                Spacer(Modifier.height(24.dp))
+                Text("퀘스트 시작 시간", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .background(Color(0xFF003A20), RoundedCornerShape(12.dp))
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    VerticalWheelPicker((0..23).toList(), startHour.value, { vm.setStartHour(it) }, "시")
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.Gray))
+                    VerticalWheelPicker((0..55 step 5).toList(), startMinute.value, { vm.setStartMinute(it) }, "분")
+                }
+
+                // 종료 시간 (휠 피커)
+                Spacer(Modifier.height(24.dp))
+                Text("퀘스트 종료 시간", color = Color.White, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .background(Color(0xFF003A20), RoundedCornerShape(12.dp))
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    VerticalWheelPicker((0..23).toList(), endHour.value, { vm.setEndHour(it) }, "시")
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.Gray))
+                    VerticalWheelPicker((0..55 step 5).toList(), endMinute.value, { vm.setEndMinute(it) }, "분")
+                }
+
+                Spacer(Modifier.height(100.dp))
             }
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f)) {
-                Text("종료 (0~23)", color = Color.White)
-                OutlinedTextField(
-                    value = endHour.value.toString(),
-                    onValueChange = { vm.setEndHour(it.toIntOrNull() ?: 0) },
-                    modifier = Modifier.fillMaxWidth().background(Color.White)
-                )
-            }
         }
+    }
+}
 
-        Spacer(Modifier.height(20.dp))
-        Button(
-            onClick = {
-                vm.createQuest()
-                navController.popBackStack()
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+// 휠 피커 컴포넌트 (유지)
+@Composable
+fun VerticalWheelPicker(
+    items: List<Int>,
+    selectedItem: Int,
+    onItemSelected: (Int) -> Unit,
+    label: String
+) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(Unit) {
+        val index = items.indexOf(selectedItem)
+        if (index >= 0) listState.scrollToItem(index)
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, color = Color.LightGray, fontSize = MaterialTheme.typography.bodySmall.fontSize)
+        Spacer(Modifier.height(4.dp))
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.width(60.dp).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            contentPadding = PaddingValues(vertical = 40.dp)
         ) {
-            Text("퀘스트 생성", color = Color.Black)
+            items(items) { item ->
+                val isSelected = (item == selectedItem)
+                Box(
+                    modifier = Modifier
+                        .height(40.dp)
+                        .fillMaxWidth()
+                        .clickable { onItemSelected(item) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (item < 10) "0$item" else "$item",
+                        color = if (isSelected) Color.White else Color.Gray,
+                        fontSize = MaterialTheme.typography.titleMedium.fontSize,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
         }
     }
 }

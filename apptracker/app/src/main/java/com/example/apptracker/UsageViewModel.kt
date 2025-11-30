@@ -6,22 +6,17 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.database.FirebaseDatabase // 🔥 Firebase 추가
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.MutableStateFlow // 하루 한줄 요약용 추가
-import kotlinx.coroutines.flow.asStateFlow     // 하루 한줄 요약용 추가
 
 class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
     private val gpt = OpenAIService(application)
 
-    // 🔥 점수 저장을 위한 DB 참조 추가
-    private val db = FirebaseDatabase.getInstance(
-        "https://apptrackerdemo-569ea-default-rtdb.firebaseio.com"
-    ).reference
-
+    // Compose에서 관찰 가능한 상태 변수들 (StateFlow 패턴 통일)
     var categoryMinutes: MutableMap<String, Int> = mutableMapOf()
         private set
 
@@ -31,7 +26,7 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
     var totalUsage = 0
         private set
 
-    // 추가된 부분: UI가 관찰할 요약 메시지 상태 변수
+    // UI가 관찰할 요약 메시지 상태 변수 (StateFlow 사용)
     private val _dailySummary = MutableStateFlow<String>("오늘의 분석을 기다리고 있어요...")
     val dailySummary = _dailySummary.asStateFlow()
 
@@ -56,55 +51,35 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
             withContext(Dispatchers.IO) {
                 stats?.forEach { stat ->
-
                     val minutes = (stat.totalTimeInForeground / 60000L).toInt()
                     if (minutes < 1) return@forEach
 
                     val pkg = stat.packageName
-
                     val appName = try {
                         pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-                    } catch (e: Exception) {
-                        pkg
-                    }
+                    } catch (e: Exception) { pkg }
 
-                    val category = try {
-                        gpt.classifyApp(pkg)
-                    } catch (e: Exception) {
-                        "기타"
-                    }
+                    // 카테고리 분류
+                    val category = try { gpt.classifyApp(pkg) } catch (e: Exception) { "기타" }
 
-                    localCategoryMinutes[category] =
-                        (localCategoryMinutes[category] ?: 0) + minutes
+                    localCategoryMinutes[category] = (localCategoryMinutes[category] ?: 0) + minutes
 
                     if (!localCategoryApps.containsKey(category)) {
                         localCategoryApps[category] = mutableListOf()
                     }
-
-                    localCategoryApps[category]!!.add(
-                        AppUsage(pkg, appName, minutes)
-                    )
+                    localCategoryApps[category]!!.add(AppUsage(pkg, appName, minutes))
 
                     total += minutes
                 }
             }
 
+            // 데이터 갱신
             categoryMinutes = localCategoryMinutes
             categoryApps = localCategoryApps
             totalUsage = total
 
-            // -------------------------------------------------------------
-            // 🔥 [추가된 부분] 총 사용 시간이 계산되면 바로 Firebase 점수로 저장!
-            // -------------------------------------------------------------
-            val nickname = UserSession.nickname
-            if (nickname.isNotBlank()) {
-                // users -> 닉네임 -> score 경로에 totalUsage(분) 저장
-                db.child("users").child(nickname).child("score").setValue(total)
-            }
-
-            // 추가된 부분: 데이터가 있으면 요약 요청
+            // 데이터 분석 요청 로직
             if (localCategoryMinutes.isNotEmpty()) {
-                // 백그라운드에서 GPT 호출
                 val summary = try {
                     gpt.getDailySummary(localCategoryMinutes)
                 } catch (e: Exception) {
@@ -112,7 +87,8 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _dailySummary.value = summary
             } else {
-                _dailySummary.value = "오늘 사용 기록이 없습니다."
+                // '사용 기록 없음' 메시지 반영
+                _dailySummary.value = "오늘 스마트폰 사용 기록이 없네요. 폰을 켜보세요!"
             }
         }
     }
