@@ -17,8 +17,7 @@ class OpenAIService(private val context: Context) {
     private val client = OkHttpClient()
     
     // 🔥 주의: 실제 배포 시에는 API 키를 안전하게 관리해야 합니다.
-    private val apiKey = "" 
-
+    private val apiKey = ""
     // ----------------------------------------------------------
     // 1. 앱 라벨 가져오기
     // ----------------------------------------------------------

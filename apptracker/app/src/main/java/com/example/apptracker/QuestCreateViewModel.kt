@@ -6,6 +6,8 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.database.FirebaseDatabase
+// 🔥 [핵심 수정] ai 폴더에 있는 파일을 가져오라고 명시했습니다!
+import com.example.apptracker.ai.AppClusteringEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,13 +22,20 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
 
     private val pm = application.packageManager
 
-    // DB 연결 (quests_v3 사용)
+    // 1. 추천용 Repository
+    private val repo = QuestRepository()
+
+    // 2. 저장용 DB (quests_v3)
     private val db = FirebaseDatabase.getInstance(
         "https://apptrackerdemo-569ea-default-rtdb.firebaseio.com"
     ).reference
 
     private val _appList = MutableStateFlow<List<App>>(emptyList())
     val appList = _appList.asStateFlow()
+
+    // 추천 앱 리스트
+    private val _recommendedApps = MutableStateFlow<List<App>>(emptyList())
+    val recommendedApps = _recommendedApps.asStateFlow()
 
     private val _selectedApp = MutableStateFlow<App?>(null)
     val selectedApp = _selectedApp.asStateFlow()
@@ -64,7 +73,19 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
                 }.sortedBy { it.appName }
             }
             _appList.value = apps
+
+            // 추천 알고리즘 실행
+            loadRecommendations(apps)
         }
+    }
+
+    private suspend fun loadRecommendations(allApps: List<App>) {
+        val history = repo.loadAllQuests()
+        val recommendations = withContext(Dispatchers.Default) {
+            // 이제 import를 했으므로 여기서 에러가 안 납니다!
+            AppClusteringEngine.getRecommendedApps(allApps, history)
+        }
+        _recommendedApps.value = recommendations
     }
 
     fun selectApp(app: App) { _selectedApp.value = app }
@@ -106,9 +127,7 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         startCal.set(Calendar.HOUR_OF_DAY, startHour.value)
         startCal.set(Calendar.MINUTE, startMinute.value)
 
-        // 시작 시간이 과거면 현재 시간으로 보정
         if (startCal.timeInMillis < System.currentTimeMillis() - 60000) {
-            Toast.makeText(getApplication(), "시작 시간이 지나서 현재 시간으로 설정합니다.", Toast.LENGTH_SHORT).show()
             startCal.timeInMillis = System.currentTimeMillis()
         }
 
@@ -136,7 +155,6 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
 
         viewModelScope.launch {
             try {
-                // 3초 타임아웃으로 안전하게 저장
                 withTimeout(3000L) {
                     db.child("quests_v3").child(nickname).child(quest.id)
                         .setValue(quest)
