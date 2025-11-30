@@ -12,11 +12,10 @@ import org.json.JSONObject
 class OpenAIService(private val context: Context) {
 
     private val client = OkHttpClient()
-    private val apiKey =
-        ""
-    // ----------------------------------------------------------
-    // 앱 라벨 가져오기
-    // ----------------------------------------------------------
+    // 🔥 주의: 실제 배포 시에는 API 키를 안전하게 관리해야 합니다.
+    private val apiKey = ""
+
+    // 1. 앱 라벨 가져오기
     private fun getAppLabel(packageName: String): String {
         return try {
             val pm = context.packageManager
@@ -27,32 +26,21 @@ class OpenAIService(private val context: Context) {
         }
     }
 
-    // ----------------------------------------------------------
-    // 사전 분류 — 애매한 GPT 분류 방지 (필수 최소 기준만 포함)
-    // ----------------------------------------------------------
+    // 2. 사전 분류
     private fun preCategory(appLabel: String, packageName: String): String? {
         val name = appLabel.lowercase()
         val pkg = packageName.lowercase()
 
-        // 엔터테인먼트 (확실한 경우만)
         if ("youtube" in name) return "엔터테인먼트"
         if ("netflix" in name) return "엔터테인먼트"
         if ("tiktok" in name) return "엔터테인먼트"
-
-        // SNS
         if ("instagram" in name) return "SNS"
         if ("kakao" in name) return "SNS"
-
-        // 정보수집
         if ("chrome" in name) return "정보수집"
         if ("naver" in name) return "정보수집"
         if ("map" in name) return "정보수집"
-
-        // 생산
         if ("gmail" in name) return "생산"
         if ("notion" in name) return "생산"
-
-        // 시스템 — 진짜 시스템만
         if ("setting" in name) return "시스템"
         if ("설정" in name) return "시스템"
         if ("system" in name && !"youtube".contains(name)) return "시스템"
@@ -62,41 +50,52 @@ class OpenAIService(private val context: Context) {
         return null
     }
 
-    // ----------------------------------------------------------
-    // GPT 분류
-    // ----------------------------------------------------------
+    // 3. 앱 카테고리 분류 (기존 기능)
     suspend fun classifyApp(packageName: String): String = withContext(Dispatchers.IO) {
-
         val appLabel = getAppLabel(packageName)
+        preCategory(appLabel, packageName)?.let { return@withContext it }
 
-        // 1) 사전 필터 적용
-        preCategory(appLabel, packageName)?.let {
-            return@withContext it
-        }
-
-        // 2) GPT 프롬프트 (네가 원하는 원형 유지 + 최소 기능 보강)
         val prompt = """
-            당신은 앱 카테고리 분류 전문가입니다.
-            주어진 앱 이름을 아래 기준 중 하나로 정확하게 분류하세요.
-
-            [카테고리 기준]
-            - 공부: 인강, 독서, 학교/학습 앱
-            - 정보수집: 검색, 뉴스, 지도, 날씨
-            - 생산: 업무, 일정, 메모, 문서, 코딩
-            - SNS: 채팅, 메신저, 커뮤니티, 소셜 플랫폼
-            - 엔터테인먼트: 영상, 음악, 게임, 웹툰
-            - 시스템: 설정, Google Play 서비스, OS 기능
-            - 기타: 위 기준 어디에도 속하지 않으면 기타로 분류
-
-            참고: 앱 이름이 모호한 경우, 일반적인 사용자 환경에서의 주 사용 목적을 기준으로 판단하세요.
-
             앱 이름: "$appLabel"
             패키지명: "$packageName"
-
+            
+            이 앱을 [공부, 정보수집, 생산, SNS, 엔터테인먼트, 시스템, 기타] 중 하나로 분류해.
             반드시 아래 형식으로만 출력:
             category: [카테고리명]
         """.trimIndent()
 
+        callGpt(prompt).replace("category:", "").replace("[", "").replace("]", "").trim()
+    }
+
+    // 🔥 [추가된 기능] 오늘의 사용 패턴 한 줄 요약
+    suspend fun generateDailySummary(categoryMinutes: Map<String, Int>): String = withContext(Dispatchers.IO) {
+        if (categoryMinutes.isEmpty()) return@withContext "아직 사용 기록이 없네요! 폰을 조금 더 써보세요."
+
+        // 데이터 문자열로 변환 (예: 엔터테인먼트: 120분, 공부: 10분)
+        val dataString = categoryMinutes.entries.joinToString(", ") { "${it.key}: ${it.value}분" }
+
+        val prompt = """
+            사용자의 오늘 스마트폰 앱 사용 내역이야:
+            [$dataString]
+            
+            이 사용자를 위해 '팩트 폭격' 또는 '따뜻한 조언'을 한 문장으로 해줘.
+            - 엔터테인먼트/SNS가 많으면: 약간 비꼬거나 정신 차리라는 조언 (유머러스하게)
+            - 공부/생산이 많으면: 칭찬
+            - 반말 모드로 친근하게.
+            - 길이는 50자 이내.
+            
+            예시: "유튜브만 3시간이라니... 눈 안 아파? 공부 좀 하자!"
+        """.trimIndent()
+
+        try {
+            callGpt(prompt)
+        } catch (e: Exception) {
+            "오늘도 알찬 하루 보내세요!"
+        }
+    }
+
+    // GPT 호출 공통 함수
+    private fun callGpt(prompt: String): String {
         val json = JSONObject().apply {
             put("model", "gpt-4o-mini")
             put("messages", listOf(
@@ -121,23 +120,11 @@ class OpenAIService(private val context: Context) {
         val response = client.newCall(request).execute()
         val raw = response.body?.string() ?: ""
 
-        val gptContent = try {
-            JSONObject(raw)
-                .getJSONArray("choices")
-                .getJSONObject(0)
-                .getJSONObject("message")
-                .getString("content")
-                .trim()
-        } catch (e: Exception) {
-            "category: [기타]"
-        }
-
-        val category = gptContent
-            .replace("category:", "")
-            .replace("[", "")
-            .replace("]", "")
+        return JSONObject(raw)
+            .getJSONArray("choices")
+            .getJSONObject(0)
+            .getJSONObject("message")
+            .getString("content")
             .trim()
-
-        return@withContext category
     }
 }
