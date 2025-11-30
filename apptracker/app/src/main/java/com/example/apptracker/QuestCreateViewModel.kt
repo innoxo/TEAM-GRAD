@@ -37,19 +37,14 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
     private val _targetMinutes = MutableStateFlow(10)
     val targetMinutes = _targetMinutes.asStateFlow()
 
-    // 초기값: 현재 시간으로 설정
-    private val now = Calendar.getInstance()
-    private val _startHour = MutableStateFlow(now.get(Calendar.HOUR_OF_DAY))
-    private val _startMinute = MutableStateFlow((now.get(Calendar.MINUTE) / 5) * 5) // 5분 단위 반올림
-
+    private val _startHour = MutableStateFlow(9)
     val startHour = _startHour.asStateFlow()
+    private val _startMinute = MutableStateFlow(0)
     val startMinute = _startMinute.asStateFlow()
 
-    // 종료 시간 초기값: 시작 시간 + 1시간
-    private val _endHour = MutableStateFlow((now.get(Calendar.HOUR_OF_DAY) + 1) % 24)
-    private val _endMinute = MutableStateFlow(0)
-
+    private val _endHour = MutableStateFlow(18)
     val endHour = _endHour.asStateFlow()
+    private val _endMinute = MutableStateFlow(0)
     val endMinute = _endMinute.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
@@ -76,44 +71,12 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
     fun setCondition(c: String) { _conditionType.value = c }
     fun setTargetMinutes(v: Int) { _targetMinutes.value = v }
 
-    // 🔥 [핵심] 시간 설정 시 유효성 검사 (과거 시간 방지)
-    fun setStartHour(hour: Int) {
+    fun setStartHour(v: Int) {
         val current = Calendar.getInstance()
         val currentHour = current.get(Calendar.HOUR_OF_DAY)
-
-        // 현재 시간보다 이전 시간을 선택하면 무시 (또는 현재 시간으로 고정)
-        if (hour < currentHour) {
-            _startHour.value = currentHour
-        } else {
-            _startHour.value = hour
-        }
-        validateMinutes() // 분 단위도 체크
+        if (v < currentHour) _startHour.value = currentHour else _startHour.value = v
     }
-
-    fun setStartMinute(minute: Int) {
-        _startMinute.value = minute
-        validateMinutes()
-    }
-
-    // 분 단위 유효성 검사 (같은 시간대인데 분이 과거인 경우 방지)
-    private fun validateMinutes() {
-        val current = Calendar.getInstance()
-        val currentHour = current.get(Calendar.HOUR_OF_DAY)
-        val currentMinute = current.get(Calendar.MINUTE)
-
-        if (_startHour.value == currentHour && _startMinute.value < currentMinute) {
-            // 현재 시간보다 이전 분이면 -> 5분 단위로 올림 처리
-            val nextValidMinute = ((currentMinute / 5) + 1) * 5
-            if (nextValidMinute < 60) {
-                _startMinute.value = nextValidMinute
-            } else {
-                // 60분이 넘어가면 다음 시간 00분으로
-                _startHour.value = (_startHour.value + 1) % 24
-                _startMinute.value = 0
-            }
-        }
-    }
-
+    fun setStartMinute(v: Int) { _startMinute.value = v }
     fun setEndHour(v: Int) { _endHour.value = v }
     fun setEndMinute(v: Int) { _endMinute.value = v }
 
@@ -143,9 +106,9 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         startCal.set(Calendar.HOUR_OF_DAY, startHour.value)
         startCal.set(Calendar.MINUTE, startMinute.value)
 
-        // 🔥 시작 시간이 현재보다 과거라면 (약간의 오차 허용) 현재 시간으로 보정
+        // 시작 시간이 과거면 현재 시간으로 보정
         if (startCal.timeInMillis < System.currentTimeMillis() - 60000) {
-            Toast.makeText(getApplication(), "시작 시간이 이미 지났습니다. 현재 시간으로 설정합니다.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(getApplication(), "시작 시간이 지나서 현재 시간으로 설정합니다.", Toast.LENGTH_SHORT).show()
             startCal.timeInMillis = System.currentTimeMillis()
         }
 
@@ -153,7 +116,6 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         endCal.set(Calendar.HOUR_OF_DAY, endHour.value)
         endCal.set(Calendar.MINUTE, endMinute.value)
 
-        // 종료 시간이 시작 시간보다 빠르면 다음날로 처리
         if (endCal.timeInMillis <= startCal.timeInMillis) {
             endCal.add(Calendar.DAY_OF_MONTH, 1)
         }
@@ -174,6 +136,7 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
 
         viewModelScope.launch {
             try {
+                // 3초 타임아웃으로 안전하게 저장
                 withTimeout(3000L) {
                     db.child("quests_v3").child(nickname).child(quest.id)
                         .setValue(quest)
