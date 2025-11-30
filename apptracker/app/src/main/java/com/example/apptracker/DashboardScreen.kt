@@ -32,7 +32,7 @@ fun DashboardScreen(navController: NavHostController) {
     val context = LocalContext.current
     val app = context.applicationContext as Application
 
-    // 뷰모델 생성 (팩토리 사용)
+    // 뷰모델 생성
     val viewModel: UsageViewModel = viewModel(
         factory = UsageViewModelFactory(app)
     )
@@ -46,14 +46,11 @@ fun DashboardScreen(navController: NavHostController) {
     val categoryMinutes = viewModel.categoryMinutes
     val categoryApps = viewModel.categoryApps
     val totalUsage = viewModel.totalUsage
-    
-    //추가된 부분: 요약 메시지 상태 관찰
-    val dailySummary by viewModel.dailySummary.collectAsState()
 
-    // 작업: GPT 한줄평 가져오기
+    // [중요] State 객체의 값을 바로 가져옵니다. (collectAsState 필요 없음)
     val aiSummary = viewModel.dailySummary.value
-    
-    // 작업: 바텀시트 상태 관리
+
+    // 바텀시트 상태 관리
     var showSheet by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
 
@@ -70,7 +67,7 @@ fun DashboardScreen(navController: NavHostController) {
 
             Spacer(Modifier.height(16.dp))
 
-            // 🔥 [추가됨] AI 한줄평 카드 (말풍선 느낌)
+            // 🔥 [수정됨] 중복 제거하고 하나만 남겼습니다! (AI 한줄평)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = ComposeColor(0xFFE8F5E9)), // 연한 초록
@@ -78,39 +75,17 @@ fun DashboardScreen(navController: NavHostController) {
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Text(
-                        text = "🤖 AI 분석",
+                        text = "🤖 AI 분석 (오늘의 한 줄)",
                         color = ComposeColor(0xFF2E7D32),
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = aiSummary, // GPT가 말한 내용
+                        text = aiSummary, // GPT가 말한 내용 표시
                         color = ComposeColor.Black,
                         fontWeight = FontWeight.Medium,
                         fontSize = 16.sp
-                    )
-                }
-            }
-
-            // 추가된 부분: 하루 한 줄 요약 카드 UI
-            Spacer(modifier = Modifier.height(16.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = ComposeColor(0xFFE8F5E9)), // 연한 초록색 배경
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "📢 오늘의 한 줄 요약",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = ComposeColor(0xFF2E7D32) // 진한 초록색 텍스트
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = dailySummary, // 뷰모델에서 가져온 실제 메시지 표시
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = ComposeColor.Black
                     )
                 }
             }
@@ -121,19 +96,19 @@ fun DashboardScreen(navController: NavHostController) {
             Spacer(Modifier.height(12.dp))
 
             // -----------------------------
-            // PIE CHART (MPAndroidChart)
+            // PIE CHART
             // -----------------------------
             AndroidView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp),
+                    .height(240.dp), // 차트 높이 조정
                 factory = { ctx ->
                     PieChart(ctx).apply {
                         description.isEnabled = false
                         setHoleColor(Color.TRANSPARENT)
                         setEntryLabelColor(Color.WHITE)
                         legend.textColor = Color.WHITE
-                        legend.isEnabled = false // 깔끔하게 레전드 숨김
+                        legend.isEnabled = false
                     }
                 },
                 update = { chart ->
@@ -156,9 +131,8 @@ fun DashboardScreen(navController: NavHostController) {
                         }
 
                         chart.data = PieData(dataSet)
-                        chart.invalidate() // 차트 갱신
+                        chart.invalidate()
 
-                        // 차트 클릭 리스너 (카테고리 상세 보기)
                         chart.setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
                             override fun onValueSelected(e: Entry?, h: Highlight?) {
                                 val pie = e as? PieEntry ?: return
@@ -173,38 +147,48 @@ fun DashboardScreen(navController: NavHostController) {
         }
 
         // ----------------------------
-        // 하단 버튼 두 개
+        // 하단 버튼들 (퀘스트 / 랭킹 / 멀티플레이)
         // ----------------------------
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                onClick = { navController.navigate("quest") },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ComposeColor.White),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("퀘스트 보기", color = ComposeColor.Black, fontWeight = FontWeight.Bold)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { navController.navigate("quest") },
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ComposeColor.White),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("퀘스트", color = ComposeColor.Black, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = { navController.navigate("ranking") },
+                    modifier = Modifier.weight(1f).height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ComposeColor.White),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("랭킹", color = ComposeColor.Black, fontWeight = FontWeight.Bold)
+                }
             }
 
+            // 멀티플레이 버튼
             Button(
-                onClick = { navController.navigate("ranking") },
+                onClick = { navController.navigate("multiplayer_lobby") },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ComposeColor.White),
+                colors = ButtonDefaults.buttonColors(containerColor = ComposeColor(0xFFE8F5E9)),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("랭킹 보기", color = ComposeColor.Black, fontWeight = FontWeight.Bold)
+                Text("🤝 멀티플레이 (협력/경쟁)", color = ComposeColor(0xFF2E7D32), fontWeight = FontWeight.Bold)
             }
         }
     }
 
-    // ----------------------------
-    // BottomSheet (카테고리 상세 정보)
-    // ----------------------------
+    // BottomSheet
     if (showSheet && selectedCategory != null) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { showSheet = false },
             sheetState = sheetState,
-            containerColor = ComposeColor(0xFF00462A) // 바텀시트 배경색 통일
+            containerColor = ComposeColor(0xFF00462A)
         ) {
             CategoryDetailSheet(
                 category = selectedCategory!!,
