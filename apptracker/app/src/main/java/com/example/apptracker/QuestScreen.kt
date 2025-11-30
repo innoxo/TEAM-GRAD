@@ -16,6 +16,7 @@ fun QuestScreen(
     navController: NavHostController,
     vm: QuestViewModel = viewModel()
 ) {
+    // 🔥 화면 켜지면 무조건 새로고침
     LaunchedEffect(Unit) { vm.refresh() }
 
     LaunchedEffect(Unit) {
@@ -28,7 +29,6 @@ fun QuestScreen(
     var tabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("진행 중", "완료됨")
 
-    // 현재 접속 닉네임 확인용
     val currentNickname = if(UserSession.nickname.isNotBlank()) UserSession.nickname else "demo_user"
 
     Column(
@@ -37,13 +37,7 @@ fun QuestScreen(
             .background(Color(0xFF00462A))
             .padding(16.dp)
     ) {
-        // 🔥 [디버깅용] 현재 닉네임 표시 (이게 demo_user인지 님 닉네임인지 확인하세요!)
-        Text(
-            text = "현재 로그인: $currentNickname",
-            color = Color.Yellow,
-            style = MaterialTheme.typography.bodySmall
-        )
-
+        Text("현재 로그인: $currentNickname", color = Color.Yellow, style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(8.dp))
 
         Row {
@@ -79,42 +73,32 @@ fun QuestScreen(
         Spacer(Modifier.height(20.dp))
 
         if (tabIndex == 0) {
-            ActiveQuestList(vm)
+            if (vm.activeQuests.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("진행 중인 퀘스트가 없습니다.", color = Color.LightGray)
+                }
+            } else {
+                vm.activeQuests.forEach { q ->
+                    QuestCard(
+                        quest = q,
+                        onComplete = { vm.markCompleted(q) },
+                        onCancel = { vm.cancelQuest(q) }
+                    )
+                }
+            }
         } else {
-            CompletedQuestList(vm)
-        }
-    }
-}
-
-@Composable
-fun ActiveQuestList(vm: QuestViewModel) {
-    if (vm.activeQuests.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("진행 중인 퀘스트가 없습니다.", color = Color.LightGray)
-        }
-    } else {
-        vm.activeQuests.forEach { q ->
-            QuestCard(
-                quest = q,
-                onComplete = { vm.markCompleted(q) },
-                onCancel = { vm.cancelQuest(q) }
-            )
-        }
-    }
-}
-
-@Composable
-fun CompletedQuestList(vm: QuestViewModel) {
-    if (vm.completedQuests.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("완료된 퀘스트가 없습니다.", color = Color.LightGray)
-        }
-    } else {
-        vm.completedQuests.forEach { q ->
-            CompletedQuestCard(
-                quest = q,
-                onDelete = { vm.deleteCompleted(q.id) }
-            )
+            if (vm.completedQuests.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("완료된 퀘스트가 없습니다.", color = Color.LightGray)
+                }
+            } else {
+                vm.completedQuests.forEach { q ->
+                    CompletedQuestCard(
+                        quest = q,
+                        onDelete = { vm.deleteCompleted(q.id) }
+                    )
+                }
+            }
         }
     }
 }

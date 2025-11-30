@@ -12,19 +12,17 @@ class QuestRepository {
         "https://apptrackerdemo-569ea-default-rtdb.firebaseio.com"
     ).reference
 
-    // 현재 닉네임 (없으면 demo_user)
     private val uid get() = if(UserSession.nickname.isNotBlank()) UserSession.nickname else "demo_user"
 
-    // 🔥 [핵심] v3로 경로 변경 + 날짜 폴더 제거
+    // v3 경로 사용
     private val questRef get() = db.child("quests_v3").child(uid)
 
-    // 실시간 감시
+    // 1. 실시간 감시 (화면 표시용)
     fun observeQuests(onDataChanged: (List<QuestItem>) -> Unit) {
         questRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val result = mutableListOf<QuestItem>()
                 try {
-                    // 🔥 [수정됨] 날짜 폴더 없이 바로 퀘스트들을 가져옵니다. (단순화)
                     snapshot.children.forEach { questNode ->
                         val item = questNode.getValue(QuestItem::class.java)
                         if (item != null) {
@@ -41,8 +39,26 @@ class QuestRepository {
         })
     }
 
+    // 🔥 [복구됨] 2. 한 번만 불러오기 (추천 알고리즘 분석용)
+    // 이 함수가 없어서 에러가 났던 겁니다!
+    suspend fun loadAllQuests(): List<QuestItem> {
+        val result = mutableListOf<QuestItem>()
+        try {
+            // get().await()를 써서 딱 한 번만 가져옵니다.
+            val snap = questRef.get().await()
+            snap.children.forEach { questNode ->
+                val item = questNode.getValue(QuestItem::class.java)
+                if (item != null) {
+                    result.add(item)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return result
+    }
+
     suspend fun saveQuest(quest: QuestItem) {
-        // 날짜 폴더 없이 ID로 바로 저장
         questRef.child(quest.id).setValue(quest).await()
     }
 

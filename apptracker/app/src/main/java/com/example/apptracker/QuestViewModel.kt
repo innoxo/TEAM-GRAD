@@ -48,14 +48,15 @@ class QuestViewModel(application: Application) : AndroidViewModel(application) {
                 val updated = q.copy(progressMinutes = used)
                 val index = activeQuests.indexOfFirst { it.id == q.id }
                 if (index != -1) activeQuests[index] = updated
-                repo.saveQuest(updated) // 날짜 인자 제거됨
+                repo.saveQuest(updated)
             }
         }
     }
 
+    // 🔥 [수정됨] success = true 로 저장
     fun markCompleted(q: QuestItem) = viewModelScope.launch {
-        val done = q.copy(status = "completed", isSuccess = true)
-        repo.saveQuest(done) // 날짜 인자 제거됨
+        val done = q.copy(status = "completed", success = true)
+        repo.saveQuest(done)
 
         val rewardPoints = if (q.goalMinutes > 0) q.goalMinutes else 50
         val nickname = if(UserSession.nickname.isNotBlank()) UserSession.nickname else "demo_user"
@@ -64,12 +65,13 @@ class QuestViewModel(application: Application) : AndroidViewModel(application) {
             .setValue(ServerValue.increment(rewardPoints.toLong()))
     }
 
+    // 🔥 [수정됨] success = false 로 저장
     fun cancelQuest(q: QuestItem) = viewModelScope.launch {
-        val failed = q.copy(status = "completed", isSuccess = false)
-        repo.saveQuest(failed) // 날짜 인자 제거됨
+        val failed = q.copy(status = "completed", success = false)
+        repo.saveQuest(failed)
     }
 
     fun deleteCompleted(id: String) = viewModelScope.launch {
-        repo.deleteQuest(id) // 날짜 인자 제거됨
+        repo.deleteQuest(id)
     }
 }
