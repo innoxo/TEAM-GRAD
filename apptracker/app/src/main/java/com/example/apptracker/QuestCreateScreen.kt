@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 
@@ -37,6 +38,7 @@ fun QuestCreateScreen(
     LaunchedEffect(Unit) { vm.loadInstalledApps() }
 
     val appList = vm.appList.collectAsState()
+    val recommendedApps = vm.recommendedApps.collectAsState() // 추가된 기능: 추천 퀘스트 (앱)
     val selected = vm.selectedApp.collectAsState()
     val condition = vm.conditionType.collectAsState()
     val minutes = vm.targetMinutes.collectAsState()
@@ -49,6 +51,7 @@ fun QuestCreateScreen(
     // 로딩 상태 (저장 중인지?)
     val isLoading = vm.isLoading.collectAsState()
 
+    // Scaffold 구조 (하단 버튼 고정 및 디자인 통일)
     Scaffold(
         containerColor = Color(0xFF00462A),
         bottomBar = {
@@ -80,7 +83,7 @@ fun QuestCreateScreen(
         }
     ) { paddingValues ->
 
-        // 🔥 [핵심] 전체를 하나의 LazyColumn으로 만들어서 터치 씹힘 완전 해결
+        // 전체를 하나의 LazyColumn으로 감싸서 스크롤 충돌 해결
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -99,20 +102,46 @@ fun QuestCreateScreen(
                 Spacer(Modifier.height(20.dp))
                 Text("퀘스트 생성", color = Color.White, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(20.dp))
+
+                // AI 맞춤 추천 섹션
+                if (recommendedApps.value.isNotEmpty()) {
+                    Text("🤖 AI 맞춤 추천 (최근 활동 기반)", color = Color(0xFF81C784), fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(recommendedApps.value) { recApp ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                                modifier = Modifier.clickable { vm.selectApp(recApp) }
+                            ) {
+                                Text(
+                                    text = recApp.appName,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    color = Color(0xFF00462A),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+
                 Text("앱 선택 (터치하세요)", color = Color.White, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
             }
 
-            // 앱 리스트 (스크롤 안에서 자연스럽게 동작)
+            // 앱 리스트 (디자인: 체크 표시 및 둥근 모서리 적용)
             items(appList.value) { appItem ->
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (selected.value == appItem) Color(0xFF4CAF50) else Color(0xFF003A20)) // 선택 안 되면 어두운 초록
+                        .background(if (selected.value == appItem) Color(0xFF4CAF50) else Color(0xFF003A20))
                         .clickable { vm.selectApp(appItem) }
-                        .padding(12.dp)
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(appItem.appName, color = Color.White)
                     if (selected.value == appItem) {
@@ -122,6 +151,7 @@ fun QuestCreateScreen(
                 }
             }
 
+            // 조건 및 시간 설정 섹션 (UX: 휠 피커 적용)
             item {
                 Spacer(Modifier.height(24.dp))
 
@@ -169,7 +199,7 @@ fun QuestCreateScreen(
                     }
                 }
 
-                // 시작 시간
+                // 시작 시간 (휠 피커)
                 Spacer(Modifier.height(24.dp))
                 Text("퀘스트 시작 시간", color = Color.White, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
@@ -186,7 +216,7 @@ fun QuestCreateScreen(
                     VerticalWheelPicker((0..55 step 5).toList(), startMinute.value, { vm.setStartMinute(it) }, "분")
                 }
 
-                // 종료 시간
+                // 종료 시간 (휠 피커)
                 Spacer(Modifier.height(24.dp))
                 Text("퀘스트 종료 시간", color = Color.White, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
@@ -209,6 +239,7 @@ fun QuestCreateScreen(
     }
 }
 
+// 휠 피커 컴포넌트 (유지)
 @Composable
 fun VerticalWheelPicker(
     items: List<Int>,
