@@ -2,13 +2,12 @@ package com.example.apptracker
 
 import android.app.Application
 import android.app.usage.UsageStatsManager
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -16,7 +15,6 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
     private val gpt = OpenAIService(application)
 
-    // Compose에서 관찰 가능한 상태 변수들 (StateFlow 패턴 통일)
     var categoryMinutes: MutableMap<String, Int> = mutableMapOf()
         private set
 
@@ -26,9 +24,9 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
     var totalUsage = 0
         private set
 
-    // UI가 관찰할 요약 메시지 상태 변수 (StateFlow 사용)
-    private val _dailySummary = MutableStateFlow<String>("오늘의 분석을 기다리고 있어요...")
-    val dailySummary = _dailySummary.asStateFlow()
+    // GPT 한줄평 저장 변수
+    var dailySummary = mutableStateOf("오늘의 분석을 기다리는 중...")
+        private set
 
     fun loadUsageData() {
         viewModelScope.launch {
@@ -45,16 +43,29 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
                 startTime, endTime
             )
 
+            // 🔥 [수정 1] 먼저 같은 패키지명끼리 시간을 합칩니다 (Merge)
+            val aggregatedStats = mutableMapOf<String, Long>()
+
+            stats?.forEach { stat ->
+                val pkg = stat.packageName
+                val time = stat.totalTimeInForeground
+
+                // 기존 값에 더하기
+                val current = aggregatedStats.getOrDefault(pkg, 0L)
+                aggregatedStats[pkg] = current + time
+            }
+
             val localCategoryMinutes = mutableMapOf<String, Int>()
             val localCategoryApps = mutableMapOf<String, MutableList<AppUsage>>()
             var total = 0
 
             withContext(Dispatchers.IO) {
-                stats?.forEach { stat ->
-                    val minutes = (stat.totalTimeInForeground / 60000L).toInt()
-                    if (minutes < 1) return@forEach
+                // 🔥 [수정 2] 합쳐진 데이터를 가지고 분류 시작
+                aggregatedStats.forEach { (pkg, totalTime) ->
 
-                    val pkg = stat.packageName
+                    val minutes = (totalTime / 60000L).toInt()
+                    if (minutes < 1) return@forEach // 1분 미만은 무시
+
                     val appName = try {
                         pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
                     } catch (e: Exception) { pkg }
@@ -78,17 +89,12 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
             categoryApps = localCategoryApps
             totalUsage = total
 
-            // 데이터 분석 요청 로직
-            if (localCategoryMinutes.isNotEmpty()) {
-                val summary = try {
-                    gpt.getDailySummary(localCategoryMinutes)
-                } catch (e: Exception) {
-                    "요약을 불러오지 못했습니다."
-                }
-                _dailySummary.value = summary
+            // AI 한줄평 요청
+            if (total > 0) {
+                val aiComment = gpt.generateDailySummary(localCategoryMinutes)
+                dailySummary.value = aiComment
             } else {
-                // '사용 기록 없음' 메시지 반영
-                _dailySummary.value = "오늘 스마트폰 사용 기록이 없네요. 폰을 켜보세요!"
+                dailySummary.value = "사용 기록이 없어요. 폰을 켜보세요!"
             }
         }
     }
