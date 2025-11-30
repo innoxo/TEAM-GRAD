@@ -2,6 +2,7 @@ package com.example.apptracker
 
 import android.app.Application
 import android.app.usage.UsageStatsManager
+import androidx.compose.runtime.mutableStateOf // State 사용을 위해 추가
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -12,7 +13,7 @@ import kotlinx.coroutines.withContext
 
 class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val gpt = OpenAIService()
+    private val gpt = OpenAIService(application)
 
     var categoryMinutes: MutableMap<String, Int> = mutableMapOf()
         private set
@@ -21,6 +22,10 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     var totalUsage = 0
+        private set
+
+    // 🔥 [추가] GPT 한줄평 저장 변수
+    var dailySummary = mutableStateOf("오늘의 분석을 기다리는 중...")
         private set
 
     fun loadUsageData() {
@@ -48,37 +53,36 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
                     if (minutes < 1) return@forEach
 
                     val pkg = stat.packageName
-
                     val appName = try {
                         pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-                    } catch (e: Exception) {
-                        pkg
-                    }
+                    } catch (e: Exception) { pkg }
 
-                    val category = try {
-                        gpt.classifyApp(appName)
-                    } catch (e: Exception) {
-                        "엔터테인먼트"
-                    }
+                    // 카테고리 분류 (기존 로직)
+                    val category = try { gpt.classifyApp(pkg) } catch (e: Exception) { "기타" }
 
-                    localCategoryMinutes[category] =
-                        (localCategoryMinutes[category] ?: 0) + minutes
+                    localCategoryMinutes[category] = (localCategoryMinutes[category] ?: 0) + minutes
 
                     if (!localCategoryApps.containsKey(category)) {
                         localCategoryApps[category] = mutableListOf()
                     }
-
-                    localCategoryApps[category]!!.add(
-                        AppUsage(pkg, appName, minutes)
-                    )
+                    localCategoryApps[category]!!.add(AppUsage(pkg, appName, minutes))
 
                     total += minutes
                 }
             }
 
+            // 데이터 갱신
             categoryMinutes = localCategoryMinutes
             categoryApps = localCategoryApps
             totalUsage = total
+
+            // 🔥 [추가] 데이터 분석이 끝나면 GPT에게 한줄평 요청!
+            if (total > 0) {
+                val aiComment = gpt.generateDailySummary(localCategoryMinutes)
+                dailySummary.value = aiComment
+            } else {
+                dailySummary.value = "사용 기록이 없어요. 폰을 켜보세요!"
+            }
         }
     }
 }
