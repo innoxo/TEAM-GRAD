@@ -20,7 +20,7 @@ class OpenAIService(private val context: Context) {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private val apiKey = ""
+    private val apiKey = BuildConfig.OPENAI_API_KEY
 
     private fun getAppLabel(packageName: String): String {
         return try {
