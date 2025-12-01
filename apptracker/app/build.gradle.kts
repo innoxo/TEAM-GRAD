@@ -95,4 +95,7 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // [추가] WorkManager (Kotlin + Coroutines 지원 버전)
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 }
