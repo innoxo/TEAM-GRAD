@@ -12,9 +12,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import java.text.SimpleDateFormat
@@ -28,6 +31,19 @@ fun GameRoomScreen(
 ) {
     LaunchedEffect(roomId) { vm.joinAndObserve(roomId) }
     val room = vm.currentRoom.collectAsState().value
+
+    // 🔥 [핵심 추가] 화면이 다시 보일 때마다(ON_RESUME) 시간 체크 강제 실행!
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // 뷰모델에 있는 시간 체크 함수 호출 (새로 만듦)
+                vm.checkTimeAndRefresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     if (room == null) {
         Box(Modifier.fillMaxSize().background(Color(0xFF00462A)), contentAlignment = Alignment.Center) {
@@ -44,15 +60,12 @@ fun GameRoomScreen(
     val isFinished = (room.status == "finished")
     val isFailed = (room.status == "failed")
 
-    // 🔥 [핵심 수정] 시간이 됐는지 확인
     val now = System.currentTimeMillis()
-    val isTimeStarted = now >= room.startTime // 시작 시간이 지났으면 true
+    val isTimeStarted = now >= room.startTime
 
     val userColors = listOf(Color(0xFF42A5F5), Color(0xFFEF5350), Color(0xFFFFCA28), Color(0xFF66BB6A), Color(0xFFAB47BC), Color(0xFFFF7043))
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.KOREA) }
     val timeRangeStr = "${timeFormat.format(Date(room.startTime))} ~ ${timeFormat.format(Date(room.endTime))}"
-
-    // 시작 시간까지 남은 분
     val waitMinutes = ((room.startTime - now) / 60000).toInt()
 
     Column(
@@ -61,12 +74,10 @@ fun GameRoomScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { navController.popBackStack() }, colors = ButtonDefaults.buttonColors(Color.White)) { Text("나가기", color = Color.Black) }
             Spacer(Modifier.width(12.dp))
-
-            // 제목 표시줄 로직 변경
             val titleText = when {
                 isFinished -> "🎉 게임 종료!"
                 isFailed -> "💀 미션 실패..."
-                isGameActive && !isTimeStarted -> "⏳ 시작 대기 중" // 활성화됐지만 시간 안 됨
+                isGameActive && !isTimeStarted -> "⏳ 시작 대기 중"
                 isGameActive -> "🔥 게임 진행 중"
                 else -> room.title
             }
@@ -75,7 +86,6 @@ fun GameRoomScreen(
 
         Spacer(Modifier.height(20.dp))
 
-        // 결과 메시지 (종료 시)
         if (isFinished || isFailed) {
             val resultMessage = getResultMessage(room, vm.myName)
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(if(isFailed) Color(0xFFFFEBEE) else Color(0xFFE8F5E9))) {
@@ -96,7 +106,6 @@ fun GameRoomScreen(
             Spacer(Modifier.height(20.dp))
         }
 
-        // 방 정보
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(Color(0xFF003A20))) {
             Column(Modifier.padding(16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -107,12 +116,9 @@ fun GameRoomScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("모드: ${if(room.mode=="coop") "협력" else "경쟁"}", color = if(room.mode=="coop") Color(0xFF81C784) else Color(0xFFEF5350))
                     Spacer(Modifier.width(12.dp))
-
-                    // 상태 텍스트 디테일하게
                     val statusStr = if(isGameActive) {
                         if(isTimeStarted) "진행 중" else "오픈 대기 (${waitMinutes}분 남음)"
                     } else "대기실"
-
                     Text(statusStr, color = Color.Yellow, fontSize = 12.sp)
                 }
             }
@@ -120,8 +126,6 @@ fun GameRoomScreen(
 
         Spacer(Modifier.height(20.dp))
 
-        // 🔥 [화면 분기]
-        // 1. 게임이 활성화되었고 + 시간도 됐을 때 -> 게임판 보여줌
         if (isGameActive && isTimeStarted) {
             if (room.mode == "coop") {
                 CoopProgressBar(room.participants.values.toList(), room.goalMinutes, userColors)
@@ -132,9 +136,7 @@ fun GameRoomScreen(
                     }
                 }
             }
-        }
-        // 2. 게임은 활성화됐는데 시간이 아직 안 됐을 때 -> 안내 문구
-        else if (isGameActive && !isTimeStarted) {
+        } else if (isGameActive && !isTimeStarted) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("⏳", fontSize = 50.sp)
@@ -144,12 +146,9 @@ fun GameRoomScreen(
                     Text("설정된 시간(${timeFormat.format(Date(room.startTime))})이 되면\n자동으로 측정이 시작됩니다.", color = Color.LightGray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
-        }
-        // 3. 아직 시작 버튼 안 누른 대기실 상태 or 종료됨
-        else if (isFinished || isFailed) {
-            // 결과창은 위에서 보여줬으니 여기선 암것도 안함 (혹은 리스트 보여줘도 됨)
+        } else if (isFinished || isFailed) {
+            // 결과창
         } else {
-            // 대기실 멤버 리스트
             Text("참가자 대기 중 (${room.participants.size}명)", color = Color.White, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -162,7 +161,6 @@ fun GameRoomScreen(
 
         Spacer(Modifier.weight(1f))
 
-        // 버튼 (대기실 상태일 때만 보임)
         if (room.status == "waiting") {
             Button(
                 onClick = { if (isHost) vm.startGame() else vm.toggleReady() },
