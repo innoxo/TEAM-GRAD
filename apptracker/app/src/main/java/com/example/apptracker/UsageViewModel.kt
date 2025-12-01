@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
     private val gpt = OpenAIService(application)
+    private val questRepo = QuestRepository()
 
     var categoryMinutes: MutableMap<String, Int> = mutableMapOf()
         private set
@@ -24,8 +25,10 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
     var totalUsage = 0
         private set
 
-    // GPT 한줄평 저장 변수
-    var dailySummary = mutableStateOf("오늘의 분석을 기다리는 중...")
+    var dailySummary = mutableStateOf("분석 중...")
+        private set
+
+    var questRecommendation = mutableStateOf("기록을 분석하고 있어...")
         private set
 
     fun loadUsageData() {
@@ -43,14 +46,11 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
                 startTime, endTime
             )
 
-            // 🔥 [수정 1] 먼저 같은 패키지명끼리 시간을 합칩니다 (Merge)
             val aggregatedStats = mutableMapOf<String, Long>()
 
             stats?.forEach { stat ->
                 val pkg = stat.packageName
                 val time = stat.totalTimeInForeground
-
-                // 기존 값에 더하기
                 val current = aggregatedStats.getOrDefault(pkg, 0L)
                 aggregatedStats[pkg] = current + time
             }
@@ -59,18 +59,24 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
             val localCategoryApps = mutableMapOf<String, MutableList<AppUsage>>()
             var total = 0
 
+            // 🔥 [추가] AI에게 알려줄 "내가 가진 앱 목록" (오늘 사용한 앱들)
+            val myUsedAppNames = mutableListOf<String>()
+
             withContext(Dispatchers.IO) {
-                // 🔥 [수정 2] 합쳐진 데이터를 가지고 분류 시작
-                aggregatedStats.forEach { (pkg, totalTime) ->
+                aggregatedStats.forEach { (pkg, time) ->
+                    if (pkg == context.packageName) return@forEach
 
-                    val minutes = (totalTime / 60000L).toInt()
-                    if (minutes < 1) return@forEach // 1분 미만은 무시
+                    val minutes = (time / 60000L).toInt()
 
+                    // 사용 시간이 1분 미만이어도 앱 이름은 수집 (추천 후보군)
                     val appName = try {
                         pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
                     } catch (e: Exception) { pkg }
 
-                    // 카테고리 분류
+                    myUsedAppNames.add(appName)
+
+                    if (minutes < 1) return@forEach
+
                     val category = try { gpt.classifyApp(pkg) } catch (e: Exception) { "기타" }
 
                     localCategoryMinutes[category] = (localCategoryMinutes[category] ?: 0) + minutes
@@ -84,18 +90,20 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // 데이터 갱신
             categoryMinutes = localCategoryMinutes
             categoryApps = localCategoryApps
             totalUsage = total
 
-            // AI 한줄평 요청
-            if (total > 0) {
-                val aiComment = gpt.generateDailySummary(localCategoryMinutes)
-                dailySummary.value = aiComment
-            } else {
-                dailySummary.value = "사용 기록이 없어요. 폰을 켜보세요!"
-            }
+            // AI 호출 1: 하루 요약
+            // (totalUsage가 작아도 분석은 수행하되, AI 내부에서 칭찬하도록 로직 변경됨)
+            dailySummary.value = gpt.generateDailySummary(localCategoryMinutes)
+
+            // AI 호출 2: 퀘스트 추천
+            val allQuests = questRepo.loadAllQuests()
+            val history = allQuests.filter { it.status == "completed" }
+
+            // 🔥 [핵심] 내 앱 목록(myUsedAppNames)을 같이 보냅니다!
+            questRecommendation.value = gpt.recommendQuestFromHistory(history, myUsedAppNames)
         }
     }
 }

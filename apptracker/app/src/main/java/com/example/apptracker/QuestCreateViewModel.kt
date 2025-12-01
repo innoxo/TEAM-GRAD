@@ -6,7 +6,6 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.database.FirebaseDatabase
-// 🔥 [핵심 수정] ai 폴더에 있는 파일을 가져오라고 명시했습니다!
 import com.example.apptracker.ai.AppClusteringEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,11 +20,8 @@ import java.util.*
 class QuestCreateViewModel(application: Application) : AndroidViewModel(application) {
 
     private val pm = application.packageManager
-
-    // 1. 추천용 Repository
     private val repo = QuestRepository()
 
-    // 2. 저장용 DB (quests_v3)
     private val db = FirebaseDatabase.getInstance(
         "https://apptrackerdemo-569ea-default-rtdb.firebaseio.com"
     ).reference
@@ -33,7 +29,6 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
     private val _appList = MutableStateFlow<List<App>>(emptyList())
     val appList = _appList.asStateFlow()
 
-    // 추천 앱 리스트
     private val _recommendedApps = MutableStateFlow<List<App>>(emptyList())
     val recommendedApps = _recommendedApps.asStateFlow()
 
@@ -63,8 +58,13 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             val apps = withContext(Dispatchers.IO) {
                 val allApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+
+                // 🔥 [핵심 수정] 내 앱 패키지명(context.packageName)은 제외하고 가져오기
+                val myPackage = getApplication<Application>().packageName
+
                 allApps.filter { appInfo ->
-                    pm.getLaunchIntentForPackage(appInfo.packageName) != null
+                    pm.getLaunchIntentForPackage(appInfo.packageName) != null &&
+                            appInfo.packageName != myPackage // 👈 내 앱 제외!
                 }.map { appInfo ->
                     App(
                         appName = pm.getApplicationLabel(appInfo).toString(),
@@ -74,7 +74,6 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
             }
             _appList.value = apps
 
-            // 추천 알고리즘 실행
             loadRecommendations(apps)
         }
     }
@@ -82,7 +81,6 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
     private suspend fun loadRecommendations(allApps: List<App>) {
         val history = repo.loadAllQuests()
         val recommendations = withContext(Dispatchers.Default) {
-            // 이제 import를 했으므로 여기서 에러가 안 납니다!
             AppClusteringEngine.getRecommendedApps(allApps, history)
         }
         _recommendedApps.value = recommendations
@@ -128,6 +126,7 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         startCal.set(Calendar.MINUTE, startMinute.value)
 
         if (startCal.timeInMillis < System.currentTimeMillis() - 60000) {
+            Toast.makeText(getApplication(), "시작 시간이 지나서 현재 시간으로 설정합니다.", Toast.LENGTH_SHORT).show()
             startCal.timeInMillis = System.currentTimeMillis()
         }
 
