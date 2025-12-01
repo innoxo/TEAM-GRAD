@@ -30,27 +30,48 @@ fun RankingScreen(navController: NavHostController) {
     var myRank by remember { mutableStateOf<RankItem?>(null) }
     val currentNickname = UserSession.nickname
 
-    LaunchedEffect(true) {
-        db.child("users").addListenerForSingleValueEvent(object : ValueEventListener {
+    // 실시간 감시 & Firebase 서버 정렬 사용
+    DisposableEffect(Unit) {
+        // 점수("score") 기준으로 정렬하고, 상위 100명(limitToLast)만 가져옴 - 부하 방지
+        // 파이어베이스는 오름차순 정렬만 지원, 나중에 뒤집어야(reverse) 1등이 위로 옴
+        val query = db.child("users").orderByChild("score").limitToLast(100)
+
+        val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val tempList = mutableListOf<RankItem>()
 
+                // 데이터 파싱
                 snapshot.children.forEach { userSnapshot ->
-                    val name = userSnapshot.key ?: return
+                    val name = userSnapshot.key ?: return@forEach
+                    // score가 없는 경우 0으로 처리
                     val points = userSnapshot.child("score").getValue(Int::class.java) ?: 0
-                    tempList.add(RankItem(name, 0, points))
+                    tempList.add(RankItem(name, 0, points)) // 등수는 나중에 매김
                 }
 
-                val sorted = tempList.sortedByDescending { it.points }
-                val ranked = sorted.mapIndexed { index, item ->
+                // Firebase는 오름차순(점수 낮은 순)으로 주므로 뒤집어야 내림차순(1등부터)이 됨
+                // 서버 정렬 기반
+                val sortedList = tempList.reversed()
+
+                // 등수 생성
+                val rankedList = sortedList.mapIndexed { index, item ->
                     item.copy(rank = index + 1)
                 }
 
-                rankingList = ranked
-                myRank = ranked.find { it.username == currentNickname }
+                rankingList = rankedList
+
+                // 내 등수 찾기 (상위 100위에 없으면 별도 처리 필요하지만, 여기선 리스트 내에서 찾음)
+                myRank = rankedList.find { it.username == currentNickname }
             }
+
             override fun onCancelled(error: DatabaseError) {}
-        })
+        }
+
+        query.addValueEventListener(listener)
+
+        // 화면을 나갈 때 리스너 제거 (메모리 누수 방지)
+        onDispose {
+            query.removeEventListener(listener)
+        }
     }
 
     Column(
@@ -70,7 +91,7 @@ fun RankingScreen(navController: NavHostController) {
         Spacer(Modifier.height(16.dp))
 
         Text(
-            text = "랭킹",
+            text = "실시간 랭킹 (TOP 100)", // 텍스트 변경
             color = Color.White,
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
         )
@@ -90,6 +111,13 @@ fun RankingScreen(navController: NavHostController) {
                     Text("포인트: ${myRank!!.points}점", color = TextPrimary)
                 }
             }
+        } else {
+            // 랭킹에 없을 경우 (신규 유저 등)
+            Text(
+                "아직 랭킹 데이터가 없거나 100위 밖입니다.",
+                color = Color.LightGray,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
 
         Spacer(Modifier.height(24.dp))
