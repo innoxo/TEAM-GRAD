@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -15,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp // 🔥 sp 에러 해결용 import
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -27,6 +28,12 @@ fun MultiplayerLobbyScreen(
 ) {
     val roomList = vm.roomList.collectAsState()
     val installedApps = vm.installedApps.collectAsState()
+
+    // 시간 상태
+    val startHour = vm.startHour.collectAsState()
+    val startMinute = vm.startMinute.collectAsState()
+    val endHour = vm.endHour.collectAsState()
+    val endMinute = vm.endMinute.collectAsState()
 
     var showDialog by remember { mutableStateOf(false) }
 
@@ -70,8 +77,15 @@ fun MultiplayerLobbyScreen(
     }
 
     if (showDialog) {
+        // 🔥 다이얼로그에 시간 설정 UI 전달
         CreateRoomDialog(
             appList = installedApps.value,
+            startHour = startHour.value, startMinute = startMinute.value,
+            endHour = endHour.value, endMinute = endMinute.value,
+            onStartHourChange = { vm.setStartHour(it) },
+            onStartMinuteChange = { vm.setStartMinute(it) },
+            onEndHourChange = { vm.setEndHour(it) },
+            onEndMinuteChange = { vm.setEndMinute(it) },
             onDismiss = { showDialog = false },
             onCreate = { title, mode, app, mins, cond ->
                 vm.createRoom(title, mode, app, mins, cond)
@@ -95,11 +109,10 @@ fun RoomItemCard(room: Room) {
                     Spacer(Modifier.width(8.dp))
                     Text(room.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 }
-                // 🔥 [수정됨] 12.sp 문법 오류 해결
                 Text(statusText, fontSize = 12.sp, color = Color.Gray)
             }
             Spacer(Modifier.height(8.dp))
-            Text("목표: ${room.targetAppName} ${room.goalMinutes}분 ${if(room.condition=="≤")"이하" else "이상"}")
+            Text("목표: ${room.targetAppName} ${room.goalMinutes}분")
             Text("참여: ${room.participants.size}명")
         }
     }
@@ -109,6 +122,10 @@ fun RoomItemCard(room: Room) {
 @Composable
 fun CreateRoomDialog(
     appList: List<App>,
+    startHour: Int, startMinute: Int,
+    endHour: Int, endMinute: Int,
+    onStartHourChange: (Int) -> Unit, onStartMinuteChange: (Int) -> Unit,
+    onEndHourChange: (Int) -> Unit, onEndMinuteChange: (Int) -> Unit,
     onDismiss: () -> Unit,
     onCreate: (String, String, App, Int, String) -> Unit
 ) {
@@ -117,12 +134,10 @@ fun CreateRoomDialog(
     var selectedApp by remember { mutableStateOf<App?>(null) }
     var goalMinutes by remember { mutableStateOf("30") }
     var condition by remember { mutableStateOf("≤") }
-
     var expanded by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(colors = CardDefaults.cardColors(Color.White), shape = RoundedCornerShape(16.dp)) {
-            // 🔥 [수정됨] verticalScroll 에러 해결
             Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState())) {
                 Text("방 만들기", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(16.dp))
@@ -130,22 +145,15 @@ fun CreateRoomDialog(
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("방 제목") }, singleLine = true)
                 Spacer(Modifier.height(8.dp))
 
-                // 앱 선택 (최신 Material3 문법 적용)
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                     OutlinedTextField(
-                        value = selectedApp?.appName ?: "앱 선택",
-                        onValueChange = {},
-                        readOnly = true,
+                        value = selectedApp?.appName ?: "앱 선택", onValueChange = {}, readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        // 🔥 [수정됨] menuAnchor 경고 해결 (최신 버전 호환)
                         modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, true).fillMaxWidth()
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         appList.forEach { app ->
-                            DropdownMenuItem(
-                                text = { Text(app.appName) },
-                                onClick = { selectedApp = app; expanded = false }
-                            )
+                            DropdownMenuItem(text = { Text(app.appName) }, onClick = { selectedApp = app; expanded = false })
                         }
                     }
                 }
@@ -153,10 +161,8 @@ fun CreateRoomDialog(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
-                        value = goalMinutes,
-                        onValueChange = { if(it.all { c -> c.isDigit() }) goalMinutes = it },
-                        label = { Text("목표(분)") },
-                        modifier = Modifier.weight(1f)
+                        value = goalMinutes, onValueChange = { if(it.all { c -> c.isDigit() }) goalMinutes = it },
+                        label = { Text("목표(분)") }, modifier = Modifier.weight(1f)
                     )
                     Spacer(Modifier.width(8.dp))
                     Column {
@@ -171,7 +177,22 @@ fun CreateRoomDialog(
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
+
+                // 🔥 시간 설정 UI 추가
+                Text("시작 시간", fontWeight = FontWeight.Bold)
+                Row(Modifier.height(100.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    LobbyWheelPicker((0..23).toList(), startHour, onStartHourChange)
+                    LobbyWheelPicker((0..55 step 5).toList(), startMinute, onStartMinuteChange)
+                }
+
+                Text("종료 시간", fontWeight = FontWeight.Bold)
+                Row(Modifier.height(100.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    LobbyWheelPicker((0..23).toList(), endHour, onEndHourChange)
+                    LobbyWheelPicker((0..55 step 5).toList(), endMinute, onEndMinuteChange)
+                }
+
+                Spacer(Modifier.height(12.dp))
                 Text("모드 선택", fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = selectedMode == "coop", onClick = { selectedMode = "coop" })
@@ -193,6 +214,37 @@ fun CreateRoomDialog(
                         colors = ButtonDefaults.buttonColors(Color(0xFF00462A))
                     ) { Text("생성") }
                 }
+            }
+        }
+    }
+}
+
+// 로비 전용 작은 휠 피커
+@Composable
+fun LobbyWheelPicker(items: List<Int>, selectedItem: Int, onItemSelected: (Int) -> Unit) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(Unit) {
+        val index = items.indexOf(selectedItem)
+        if (index >= 0) listState.scrollToItem(index)
+    }
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.width(50.dp).fillMaxHeight(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        contentPadding = PaddingValues(vertical = 30.dp)
+    ) {
+        items(items) { item ->
+            val isSelected = (item == selectedItem)
+            Box(
+                modifier = Modifier.height(30.dp).fillMaxWidth().clickable { onItemSelected(item) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (item < 10) "0$item" else "$item",
+                    color = if (isSelected) Color.Black else Color.LightGray,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = 16.sp
+                )
             }
         }
     }

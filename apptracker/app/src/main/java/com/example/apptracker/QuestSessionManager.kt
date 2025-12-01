@@ -5,7 +5,6 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Calendar
 import kotlin.math.max
 import kotlin.math.min
 
@@ -16,100 +15,59 @@ class QuestSessionManager(private val context: Context) {
     suspend fun measureAppUsage(start: Long, end: Long, pkg: String): Int =
         withContext(Dispatchers.IO) {
 
-            // 1. 정밀 측정 시도 (이벤트 기반)
-            var result = calculateFromEvents(start, end, pkg)
+            // 1. 조회 범위는 넓게 잡습니다. (이미 켜져있는 앱을 감지하기 위해)
+            // 퀘스트 시작 시간보다 24시간 전부터 조회를 시작합니다.
+            val searchStart = start - (1000 * 60 * 60 * 24)
+            val events = usage.queryEvents(searchStart, end)
+            val event = UsageEvents.Event()
 
-            // 2. 만약 0분이 나왔다면? -> 대시보드 값(오늘 하루 총량)을 확인해본다. (백업 로직)
-            if (result == 0) {
-                val dailyUsage = calculateDailyTotal(pkg)
+            var totalTime = 0L
+            var lastStartTime = 0L // 앱이 켜진 시점
 
-                // 대시보드에는 기록이 있고(0보다 크고), 퀘스트가 '오늘' 시작된 거라면?
-                // -> 0분 대신 대시보드 값을 쓴다! (동기화)
-                if (dailyUsage > 0 && isQuestStartedToday(start)) {
-                    result = dailyUsage
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+
+                if (event.packageName == pkg) {
+
+                    // 앱이 켜졌을 때 (또는 상호작용 중일 때)
+                    if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
+                        event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+                        lastStartTime = event.timeStamp
+                    }
+
+                    // 앱이 꺼졌을 때
+                    else if (event.eventType == UsageEvents.Event.MOVE_TO_BACKGROUND ||
+                        event.eventType == UsageEvents.Event.ACTIVITY_PAUSED) {
+
+                        if (lastStartTime > 0) {
+                            // 🔥 [핵심 로직]
+                            // 앱 켜진 시간(lastStartTime)과 퀘스트 시작 시간(start) 중 **더 늦은 것**을 기준으로 삼습니다.
+                            // 즉, 아침 9시에 켰어도 퀘스트가 19시에 시작했으면 19시부터 계산합니다.
+                            val activeStart = max(lastStartTime, start)
+                            val activeEnd = min(event.timeStamp, end)
+
+                            // 유효한 구간(퀘스트 범위 내)이 있다면 더하기
+                            if (activeEnd > activeStart) {
+                                totalTime += (activeEnd - activeStart)
+                            }
+                            lastStartTime = 0
+                        }
+                    }
                 }
             }
 
-            result
-        }
+            // 2. [현재 진행 중] 아직 앱을 안 끄고 보고 있는 경우 처리
+            if (lastStartTime > 0) {
+                // 마찬가지로 퀘스트 시작 시간 이후만 계산
+                val activeStart = max(lastStartTime, start)
+                val activeEnd = min(end, System.currentTimeMillis())
 
-    // 🕵️‍♂️ 정밀 측정 (타임라인 스캔 방식)
-    private fun calculateFromEvents(start: Long, end: Long, pkg: String): Int {
-        val searchStart = start - (1000 * 60 * 60 * 24) // 24시간 전부터 조회
-        val events = usage.queryEvents(searchStart, end)
-        val event = UsageEvents.Event()
-
-        var totalTime = 0L
-        var lastEventTime = searchStart
-        var currentForegroundPackage: String? = null
-
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-
-            if (event.timeStamp > lastEventTime) {
-                if (currentForegroundPackage == pkg) {
-                    val duration = calculateOverlap(lastEventTime, event.timeStamp, start, end)
-                    totalTime += duration
+                if (activeEnd > activeStart) {
+                    totalTime += (activeEnd - activeStart)
                 }
             }
 
-            when (event.eventType) {
-                UsageEvents.Event.MOVE_TO_FOREGROUND,
-                UsageEvents.Event.ACTIVITY_RESUMED -> currentForegroundPackage = event.packageName
-
-                UsageEvents.Event.MOVE_TO_BACKGROUND,
-                UsageEvents.Event.ACTIVITY_PAUSED -> {
-                    if (event.packageName == currentForegroundPackage) currentForegroundPackage = null
-                }
-            }
-            lastEventTime = event.timeStamp
+            // 밀리초 -> 분 변환
+            (totalTime / 60000L).toInt()
         }
-
-        if (currentForegroundPackage == pkg) {
-            totalTime += calculateOverlap(lastEventTime, end, start, end)
-        }
-
-        return (totalTime / 60000L).toInt()
-    }
-
-    // 📊 하루 총 사용량 가져오기 (대시보드와 동일한 방식)
-    private fun calculateDailyTotal(pkg: String): Int {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        val startOfDay = calendar.timeInMillis
-        val endOfDay = System.currentTimeMillis()
-
-        val stats = usage.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            startOfDay,
-            endOfDay
-        )
-
-        if (stats != null) {
-            val totalMillis = stats
-                .filter { it.packageName == pkg }
-                .sumOf { it.totalTimeInForeground }
-
-            return (totalMillis / 60000L).toInt()
-        }
-
-        return 0
-    }
-
-    private fun calculateOverlap(blockStart: Long, blockEnd: Long, questStart: Long, questEnd: Long): Long {
-        val actualStart = max(blockStart, questStart)
-        val actualEnd = min(blockEnd, questEnd)
-        return if (actualEnd > actualStart) actualEnd - actualStart else 0L
-    }
-
-    private fun isQuestStartedToday(startTime: Long): Boolean {
-        val calendar = Calendar.getInstance()
-        val todayYear = calendar.get(Calendar.YEAR)
-        val todayDay = calendar.get(Calendar.DAY_OF_YEAR)
-
-        calendar.timeInMillis = startTime
-        return (calendar.get(Calendar.YEAR) == todayYear && calendar.get(Calendar.DAY_OF_YEAR) == todayDay)
-    }
 }
