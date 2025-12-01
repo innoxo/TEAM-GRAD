@@ -19,22 +19,49 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentRoom = MutableStateFlow<Room?>(null)
     val currentRoom = _currentRoom.asStateFlow()
 
-    // 방 입장 및 감시
+    // 1. 방 입장 및 실시간 감시
     fun joinAndObserve(roomId: String) {
         viewModelScope.launch {
+            // 방 정보 구독
             repo.observeRoomDetail(roomId) { room ->
                 _currentRoom.value = room
-                // 방이 활성화(active) 상태라면 추적 로직 시작
-                if (room?.status == "active") {
-                    startTracking(room)
+
+                // 이미 게임 중이라면 추적 시작
+                if (room != null && room.status == "active") {
+                    // 들어오자마자 시간 끝났는지 체크
+                    checkTimeOver(room)
+
+                    // 시간이 남았으면 추적기 가동
+                    if (System.currentTimeMillis() < room.endTime) {
+                        startTracking(room)
+                    }
                 }
             }
-            // 내 입장 정보 저장
+            // 내 입장 정보 저장 (백그라운드)
             try { repo.joinRoom(roomId, myName) } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
-    // 준비 상태 토글
+    // 2. 화면 다시 켰을 때(ON_RESUME) 시간 체크용 함수
+    fun checkTimeAndRefresh() {
+        val room = _currentRoom.value ?: return
+        checkTimeOver(room)
+    }
+
+    // 시간 초과 체크 (공통 로직)
+    private fun checkTimeOver(room: Room) {
+        val now = System.currentTimeMillis()
+        if (now >= room.endTime && room.status == "active") {
+            // 시간이 다 됐는데 아직 안 끝났으면 -> 방장이 종료 처리
+            if (room.creator == myName) {
+                viewModelScope.launch {
+                    finishGameByTimeUp(room)
+                }
+            }
+        }
+    }
+
+    // 3. 준비 상태 토글
     fun toggleReady() {
         val room = _currentRoom.value ?: return
         viewModelScope.launch {
@@ -42,7 +69,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // 게임 시작 (방장만)
+    // 4. 게임 시작 (방장 전용)
     fun startGame() {
         val room = _currentRoom.value ?: return
         if (room.creator == myName) {
@@ -50,7 +77,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // 보상 받기
+    // 5. 보상 받기
     fun claimReward() {
         val room = _currentRoom.value ?: return
         val myInfo = room.participants[myName] ?: return
@@ -58,10 +85,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             var points = 0
+
+            // 협력 모드 보상
             if (room.mode == "coop") {
-                if (room.condition == "≥") points = myInfo.currentMinutes else points = room.goalMinutes
-            } else {
-                // 경쟁 모드
+                if (room.condition == "≥") {
+                    // 이상(채우기): 내 기여도만큼
+                    points = myInfo.currentMinutes
+                } else {
+                    // 이하(참기): 목표 시간만큼 보너스
+                    points = room.goalMinutes
+                }
+            }
+            // 경쟁 모드 보상
+            else {
                 points = room.goalMinutes
             }
 
@@ -72,7 +108,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // 🔥 [핵심] 실시간 추적 로직 (시간 대기 기능 포함)
+    // 🔥 6. 실시간 추적 루프 (핵심 엔진)
     private var isTracking = false
     private fun startTracking(room: Room) {
         if (isTracking) return
@@ -81,7 +117,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             while (true) {
                 val current = _currentRoom.value
-                // 방이 없거나 종료되었으면 중단
+                // 방이 없거나 종료되었으면 루프 탈출
                 if (current == null || current.status != "active") {
                     isTracking = false
                     break
@@ -89,54 +125,72 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
                 val now = System.currentTimeMillis()
 
-                // 🔥 시작 시간이 아직 안 됐으면, 측정하지 않고 대기합니다!
+                // 시작 시간 전이면 대기
                 if (now < current.startTime) {
-                    delay(1000) // 1초 대기
-                    continue    // 다음 루프로 넘어감 (아래 측정 로직 실행 안 함)
+                    delay(1000)
+                    continue
                 }
 
-                // 종료 시간 체크
+                // 종료 시간 지났으면 처리 후 탈출
                 if (now >= current.endTime) {
                     if (current.creator == myName) finishGameByTimeUp(current)
+                    isTracking = false
+                    break
                 }
 
-                // 사용량 측정
+                // 앱 사용량 측정 (QuestSessionManager가 정밀 측정함)
                 val used = session.measureAppUsage(current.startTime, min(now, current.endTime), current.targetPackage)
+
+                // 내 점수 업데이트
                 repo.updateParticipantProgress(current.roomId, myName, used)
 
-                // 승패 판정 (방장만)
+                // 방장은 승패 판정도 수행
                 if (current.creator == myName) checkGameRule(current)
 
-                delay(2000)
+                delay(2000) // 2초 주기
             }
         }
     }
 
-    // 승패 판정 로직
+    // 7. 실시간 승패 판정 (진행 중일 때)
     private suspend fun checkGameRule(room: Room) {
         val participants = room.participants.values.toList()
         val totalUsage = participants.sumOf { it.currentMinutes }
 
         if (room.mode == "coop") {
             if (room.condition == "≥") {
+                // 이상: 다같이 합쳐서 목표 넘으면 성공!
                 if (totalUsage >= room.goalMinutes) repo.finishGame(room.roomId, "finished")
             } else {
+                // 이하: 합쳐서 목표 넘으면 즉시 실패!
                 if (totalUsage > room.goalMinutes) repo.finishGame(room.roomId, "failed")
             }
         } else {
             if (room.condition == "≥") {
+                // 경쟁(이상): 누구라도 목표 넘으면 그 사람이 승리!
                 val winner = participants.find { it.currentMinutes >= room.goalMinutes }
                 if (winner != null) repo.finishGame(room.roomId, "finished", winner.nickname)
             }
         }
     }
 
-    // 시간 초과 시 판정
+    // 8. 시간이 다 됐을 때 판정 (타임아웃)
     private suspend fun finishGameByTimeUp(room: Room) {
+        val participants = room.participants.values.toList()
+        val totalUsage = participants.sumOf { it.currentMinutes }
+
         if (room.mode == "coop") {
-            if (room.condition == "≤") repo.finishGame(room.roomId, "finished")
-            else repo.finishGame(room.roomId, "failed")
+            if (room.condition == "≤") {
+                // 이하(참기): 시간 끝날 때까지 안 터졌으면 성공! (0분이어도 성공)
+                if (totalUsage <= room.goalMinutes) repo.finishGame(room.roomId, "finished")
+                else repo.finishGame(room.roomId, "failed")
+            } else {
+                // 이상(채우기): 시간 끝났는데 못 채웠으면 실패!
+                if (totalUsage < room.goalMinutes) repo.finishGame(room.roomId, "failed")
+                else repo.finishGame(room.roomId, "finished")
+            }
         } else {
+            // 경쟁(참기): 시간 종료 시점의 승패는 개별 판단 (일단 게임 종료 처리)
             repo.finishGame(room.roomId, "finished")
         }
     }
