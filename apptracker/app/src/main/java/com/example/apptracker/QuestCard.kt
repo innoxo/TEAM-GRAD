@@ -4,7 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,18 +21,25 @@ fun QuestCard(
     onComplete: () -> Unit,
     onCancel: () -> Unit
 ) {
+    // 🔥 [시간 표시용 포맷]
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.KOREA) }
     val startStr = timeFormat.format(Date(quest.startTime))
     val endStr = timeFormat.format(Date(quest.endTime))
 
+    // 현재 시간 체크
     val now = System.currentTimeMillis()
-    val isTimeOver = now >= quest.endTime
+    // 종료 시간이 지났는지 확인 (남은 시간이 0 이하)
+    val isTimeOver = (quest.endTime - now) <= 0
 
+    // 달성률 계산
     val progress = if (quest.goalMinutes > 0) {
         (quest.progressMinutes.toFloat() / quest.goalMinutes).coerceIn(0f, 1f)
     } else 0f
     val percentage = (progress * 100).toInt()
 
+    // ------------------------------------------------------------
+    // 버튼 활성화 로직 (기존 기능 유지)
+    // ------------------------------------------------------------
     val isLessType = (quest.conditionType == "≤" || quest.conditionType == "<=")
     val isGoalMet = if (isLessType) {
         quest.progressMinutes <= quest.goalMinutes
@@ -40,8 +48,10 @@ fun QuestCard(
     }
 
     val canClaim = if (isLessType) {
+        // 이하는 목표 지키고 + 시간도 끝나야 함
         isGoalMet && isTimeOver
     } else {
+        // 이상은 목표만 달성하면 됨
         isGoalMet
     }
 
@@ -58,25 +68,48 @@ fun QuestCard(
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
+            // 1. 상단: 앱 이름 + 시간 표시
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(quest.appName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.Black)
+                Text(
+                    text = quest.appName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+
+                // 🔥 [여기서 시간 표시]
+                // 시간이 지났으면 빨간색, 진행 중이면 회색으로 표시
                 if (isTimeOver) {
-                    Text("종료됨 ($startStr ~ $endStr)", style = MaterialTheme.typography.bodySmall, color = Color.Red, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "종료됨 ($startStr ~ $endStr)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Red,
+                        fontWeight = FontWeight.Bold
+                    )
                 } else {
-                    Text("진행 중 ($startStr ~ $endStr)", style = MaterialTheme.typography.bodySmall, color = Color(0xFF00462A))
+                    Text(
+                        text = "$startStr ~ $endStr",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
                 }
             }
+
             Spacer(Modifier.height(12.dp))
+
+            // 2. 목표 및 현재 상태
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 val conditionText = if (isLessType) "이하" else "이상"
                 Text("목표: ${quest.goalMinutes}분 $conditionText", style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
                 Text("${quest.progressMinutes}분 (${percentage}%)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color(0xFF00462A))
             }
             Spacer(Modifier.height(8.dp))
+
+            // 3. 게이지 바
             val isFailed = isLessType && (quest.progressMinutes > quest.goalMinutes)
             LinearProgressIndicator(
                 progress = { progress },
@@ -84,7 +117,10 @@ fun QuestCard(
                 color = if (isFailed) Color.Red else Color(0xFF4CAF50),
                 trackColor = Color(0xFFE0E0E0),
             )
+
             Spacer(Modifier.height(16.dp))
+
+            // 4. 버튼 영역
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onCancel,
@@ -115,12 +151,14 @@ fun CompletedQuestCard(
     quest: QuestItem,
     onDelete: () -> Unit
 ) {
-    // 🔥 [수정됨] quest.success 값을 확인해서 성공/실패 판별
-    val isSuccess = quest.success
-
+    val isSuccess = quest.success // 성공 여부 확인
     val bgColor = if (isSuccess) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
     val textColor = if (isSuccess) Color(0xFF2E7D32) else Color(0xFFC62828)
     val statusText = if (isSuccess) "성공!" else "실패 (포기)"
+
+    // 완료된 카드에도 시간 표시 추가
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.KOREA) }
+    val timeStr = "${timeFormat.format(Date(quest.startTime))} ~ ${timeFormat.format(Date(quest.endTime))}"
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -128,12 +166,19 @@ fun CompletedQuestCard(
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(quest.appName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text(statusText, fontWeight = FontWeight.Bold, color = textColor)
+                Column {
+                    Text(quest.appName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Spacer(Modifier.height(4.dp))
+                    Text(timeStr, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                }
+                Text(statusText, fontWeight = FontWeight.Bold, color = textColor, style = MaterialTheme.typography.titleMedium)
             }
-            Spacer(Modifier.height(4.dp))
-            Text("최종 기록: ${quest.progressMinutes}분", color = Color.DarkGray)
+
+            Spacer(Modifier.height(8.dp))
+            Text("최종 기록: ${quest.progressMinutes}분 / 목표: ${quest.goalMinutes}분", color = Color.DarkGray)
+
             Spacer(Modifier.height(12.dp))
+
             Button(
                 onClick = onDelete,
                 colors = ButtonDefaults.buttonColors(Color.White),

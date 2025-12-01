@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun GameRoomScreen(
@@ -36,80 +39,211 @@ fun GameRoomScreen(
     val isHost = (room.creator == vm.myName)
     val myInfo = room.participants[vm.myName]
     val isReady = myInfo?.isReady ?: false
+
     val isGameActive = (room.status == "active")
+    val isFinished = (room.status == "finished")
+    val isFailed = (room.status == "failed")
+
+    // 🔥 [핵심 수정] 시간이 됐는지 확인
+    val now = System.currentTimeMillis()
+    val isTimeStarted = now >= room.startTime // 시작 시간이 지났으면 true
+
+    val userColors = listOf(Color(0xFF42A5F5), Color(0xFFEF5350), Color(0xFFFFCA28), Color(0xFF66BB6A), Color(0xFFAB47BC), Color(0xFFFF7043))
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.KOREA) }
+    val timeRangeStr = "${timeFormat.format(Date(room.startTime))} ~ ${timeFormat.format(Date(room.endTime))}"
+
+    // 시작 시간까지 남은 분
+    val waitMinutes = ((room.startTime - now) / 60000).toInt()
 
     Column(
         modifier = Modifier.fillMaxSize().background(Color(0xFF00462A)).padding(16.dp)
     ) {
-        // 상단바
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { navController.popBackStack() }, colors = ButtonDefaults.buttonColors(Color.White)) { Text("나가기", color = Color.Black) }
             Spacer(Modifier.width(12.dp))
-            Text(if(isGameActive) "🔥 게임 중!" else room.title, color = Color.White, style = MaterialTheme.typography.titleLarge)
+
+            // 제목 표시줄 로직 변경
+            val titleText = when {
+                isFinished -> "🎉 게임 종료!"
+                isFailed -> "💀 미션 실패..."
+                isGameActive && !isTimeStarted -> "⏳ 시작 대기 중" // 활성화됐지만 시간 안 됨
+                isGameActive -> "🔥 게임 진행 중"
+                else -> room.title
+            }
+            Text(titleText, color = Color.White, style = MaterialTheme.typography.titleLarge)
         }
 
         Spacer(Modifier.height(20.dp))
+
+        // 결과 메시지 (종료 시)
+        if (isFinished || isFailed) {
+            val resultMessage = getResultMessage(room, vm.myName)
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(if(isFailed) Color(0xFFFFEBEE) else Color(0xFFE8F5E9))) {
+                Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(resultMessage, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Black)
+                    if (canIClaimReward(room, vm.myName) && !isFailed) {
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = { vm.claimReward() },
+                            enabled = !(myInfo?.rewardClaimed ?: false),
+                            colors = ButtonDefaults.buttonColors(Color(0xFF00462A))
+                        ) {
+                            Text(if(myInfo?.rewardClaimed == true) "보상 획득 완료" else "🎁 보상 받기")
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+        }
 
         // 방 정보
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(Color(0xFF003A20))) {
             Column(Modifier.padding(16.dp)) {
-                Text("목표: ${room.targetAppName} ${room.goalMinutes}분 ${if(room.condition=="≤")"이하" else "이상"}", color = Color.White)
-                Text("모드: ${if(room.mode=="coop") "협력" else "경쟁"}", color = if(room.mode=="coop") Color(0xFF81C784) else Color(0xFFEF5350))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("${room.targetAppName} ${room.goalMinutes}분 ${if(room.condition=="≤")"이하" else "이상"}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(timeRangeStr, color = Color(0xFFBDBDBD), style = MaterialTheme.typography.bodySmall)
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("모드: ${if(room.mode=="coop") "협력" else "경쟁"}", color = if(room.mode=="coop") Color(0xFF81C784) else Color(0xFFEF5350))
+                    Spacer(Modifier.width(12.dp))
+
+                    // 상태 텍스트 디테일하게
+                    val statusStr = if(isGameActive) {
+                        if(isTimeStarted) "진행 중" else "오픈 대기 (${waitMinutes}분 남음)"
+                    } else "대기실"
+
+                    Text(statusStr, color = Color.Yellow, fontSize = 12.sp)
+                }
             }
         }
 
         Spacer(Modifier.height(20.dp))
 
-        // 🔥 게임 상태에 따라 UI 분기
-        if (isGameActive) {
-            Text("실시간 진행 현황", color = Color.White, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-
-            // 참가자들 게이지 바 표시
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(room.participants.values.toList().sortedByDescending { it.currentMinutes }) { p ->
-                    InGamePlayerCard(p, room.goalMinutes, room.condition)
+        // 🔥 [화면 분기]
+        // 1. 게임이 활성화되었고 + 시간도 됐을 때 -> 게임판 보여줌
+        if (isGameActive && isTimeStarted) {
+            if (room.mode == "coop") {
+                CoopProgressBar(room.participants.values.toList(), room.goalMinutes, userColors)
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(room.participants.values.toList().sortedByDescending { it.currentMinutes }) { p ->
+                        InGamePlayerCard(p, room.goalMinutes, room.condition)
+                    }
                 }
             }
+        }
+        // 2. 게임은 활성화됐는데 시간이 아직 안 됐을 때 -> 안내 문구
+        else if (isGameActive && !isTimeStarted) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("⏳", fontSize = 50.sp)
+                    Spacer(Modifier.height(16.dp))
+                    Text("게임 시작 대기 중...", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("설정된 시간(${timeFormat.format(Date(room.startTime))})이 되면\n자동으로 측정이 시작됩니다.", color = Color.LightGray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        }
+        // 3. 아직 시작 버튼 안 누른 대기실 상태 or 종료됨
+        else if (isFinished || isFailed) {
+            // 결과창은 위에서 보여줬으니 여기선 암것도 안함 (혹은 리스트 보여줘도 됨)
         } else {
-            // 대기실 UI
+            // 대기실 멤버 리스트
             Text("참가자 대기 중 (${room.participants.size}명)", color = Color.White, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(room.participants.values.toList()) { p ->
-                    ParticipantCard(p, room.creator)
+                itemsIndexed(room.participants.values.toList()) { index, p ->
+                    val color = if (room.mode == "coop") userColors[index % userColors.size] else Color.White
+                    ParticipantCard(p, room.creator, color, room.mode == "coop")
                 }
             }
         }
 
         Spacer(Modifier.weight(1f))
 
-        // 버튼 (게임 중엔 숨김)
-        if (!isGameActive) {
+        // 버튼 (대기실 상태일 때만 보임)
+        if (room.status == "waiting") {
             Button(
                 onClick = { if (isHost) vm.startGame() else vm.toggleReady() },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = if (isReady) Color.Gray else Color.White)
             ) {
-                val btnText = if (isHost) "게임 시작" else if (isReady) "준비 완료!" else "준비 하기"
+                val btnText = if (isHost) "게임 시작 (방 열기)" else if (isReady) "준비 완료!" else "준비 하기"
                 Text(btnText, color = Color.Black, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
-// 대기실 카드
+// ... (하단 함수들은 기존과 동일, 그대로 두세요) ...
+fun getResultMessage(room: Room, myName: String): String {
+    if (room.status == "failed") return "💥 미션 실패! (목표 초과)"
+    if (room.mode == "coop") return "🎉 협력 성공! 모두 고생하셨습니다."
+    if (room.winner.isNotBlank()) {
+        return if (room.winner == myName) "🏆 승리! 축하합니다!" else "😢 패배... 우승자: ${room.winner}"
+    }
+    val myInfo = room.participants[myName]
+    val isSuccess = (myInfo?.currentMinutes ?: 0) <= room.goalMinutes
+    return if (isSuccess) "🛡️ 생존 성공! (목표 달성)" else "💀 탈락! (목표 초과)"
+}
+
+fun canIClaimReward(room: Room, myName: String): Boolean {
+    if (room.status == "failed") return false
+    val myInfo = room.participants[myName] ?: return false
+    if (room.mode == "coop") return true
+    if (room.condition == "≥") return room.winner == myName
+    return myInfo.currentMinutes <= room.goalMinutes
+}
+
 @Composable
-fun ParticipantCard(p: Participant, creatorName: String) {
+fun CoopProgressBar(participants: List<Participant>, goalMinutes: Int, colors: List<Color>) {
+    val totalUsed = participants.sumOf { it.currentMinutes }
+    val safeGoal = if (goalMinutes > 0) goalMinutes else 1
+    val progressPercent = ((totalUsed.toFloat() / safeGoal) * 100).toInt()
+
+    Card(colors = CardDefaults.cardColors(Color.White), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("팀 전체 달성도", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("$totalUsed / ${goalMinutes}분 ($progressPercent%)", fontWeight = FontWeight.Bold, color = Color(0xFF00462A))
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(15.dp)).background(Color.LightGray)) {
+                participants.forEachIndexed { index, p ->
+                    if (p.currentMinutes > 0) {
+                        Box(modifier = Modifier.weight(p.currentMinutes.toFloat()).fillMaxHeight().background(colors[index % colors.size]))
+                    }
+                }
+                val remaining = safeGoal - totalUsed
+                if (remaining > 0) Box(modifier = Modifier.weight(remaining.toFloat()).fillMaxHeight().background(Color(0xFFE0E0E0)))
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                participants.forEachIndexed { index, p ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(10.dp).background(colors[index % colors.size], RoundedCornerShape(2.dp)))
+                        Spacer(Modifier.width(4.dp))
+                        Text("${p.nickname} (${p.currentMinutes}분)", fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ParticipantCard(p: Participant, creatorName: String, color: Color, isCoop: Boolean) {
     val isHost = (p.nickname == creatorName)
-    val readyColor = if (p.isReady) Color(0xFF4CAF50) else Color.Gray
     Card(colors = CardDefaults.cardColors(Color.White), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isCoop) { Box(modifier = Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(color)); Spacer(Modifier.width(8.dp)) }
                 if (isHost) Text("👑 ", fontSize = 20.sp)
                 Text(p.nickname, fontWeight = FontWeight.Bold, color = Color.Black)
             }
             if (!isHost) {
+                val readyColor = if (p.isReady) Color(0xFF4CAF50) else Color.Gray
                 Box(modifier = Modifier.background(readyColor, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
                     Text(if (p.isReady) "READY" else "WAIT", color = Color.White, style = MaterialTheme.typography.labelSmall)
                 }
@@ -120,13 +254,11 @@ fun ParticipantCard(p: Participant, creatorName: String) {
     }
 }
 
-// 🔥 게임 중 카드 (게이지 바)
 @Composable
 fun InGamePlayerCard(p: Participant, goal: Int, condition: String) {
     val progress = (p.currentMinutes.toFloat() / goal).coerceIn(0f, 1f)
     val isOver = p.currentMinutes > goal
-    val barColor = if(condition == "≤" && isOver) Color.Red else Color(0xFF4CAF50) // 이하 조건인데 넘으면 빨강
-
+    val barColor = if(condition == "≤" && isOver) Color.Red else Color(0xFF4CAF50)
     Card(colors = CardDefaults.cardColors(Color.White), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -134,12 +266,7 @@ fun InGamePlayerCard(p: Participant, goal: Int, condition: String) {
                 Text("${p.currentMinutes} / ${goal}분", color = Color.DarkGray)
             }
             Spacer(Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp)),
-                color = barColor,
-                trackColor = Color.LightGray
-            )
+            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp)), color = barColor, trackColor = Color.LightGray)
         }
     }
 }
