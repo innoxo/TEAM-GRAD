@@ -21,6 +21,7 @@ class OpenAIService(private val context: Context) {
         .build()
 
     private val apiKey = ""
+
     private fun getAppLabel(packageName: String): String {
         return try {
             val pm = context.packageManager
@@ -55,6 +56,9 @@ class OpenAIService(private val context: Context) {
     suspend fun generateDailySummary(categoryMinutes: Map<String, Int>): String = withContext(Dispatchers.IO) {
         val meaningfulData = categoryMinutes.filterKeys { it != "시스템" && it != "기타" && it != "설정" }
         val totalMinutes = meaningfulData.values.sum()
+
+        if (totalMinutes == 0) return@withContext "폰을 거의 안 썼네? 오늘 정말 갓생 살았구나! 최고야 👍"
+
         val playMinutes = (meaningfulData["엔터테인먼트"] ?: 0) + (meaningfulData["SNS"] ?: 0) + (meaningfulData["게임"] ?: 0)
         val playRatio = if (totalMinutes > 0) (playMinutes.toDouble() / totalMinutes * 100).toInt() else 0
         val dataString = meaningfulData.entries.joinToString(", ") { "${it.key}: ${it.value}분" }
@@ -66,69 +70,63 @@ class OpenAIService(private val context: Context) {
             [상세: $dataString]
             
             이걸 보고 다정한 친구처럼 한마디 해줘. (반말, 50자 이내)
-            1. 노는 비중 30% 미만: "오늘 정말 알차게 보냈네! 멋져 👍"
-            2. 노는 비중 30%~50%: "적당히 잘 쉬었네! 이제 슬슬 집중해볼까?"
-            3. 노는 비중 50% 이상: "오늘 좀 많이 놀았는데? 눈 건강 생각해서 조금만 줄이자!"
+            1. 절대 혼내거나 비꼬지 마.
+            2. 많이 썼으면: "눈이 피곤하겠다, 조금 쉬어주는 건 어때?" 처럼 걱정해주고 격려해줘.
+            3. 적게 썼으면: "오늘 하루 알차게 보냈구나! 정말 대단해" 라고 듬뿍 칭찬해줘.
         """.trimIndent()
 
-        try {
-            callGpt(prompt)
-        } catch (e: Exception) {
-            "분석 실패: ${e.message}"
-        }
+        try { callGpt(prompt) } catch (e: Exception) { "분석 실패: ${e.message}" }
     }
 
-    // 🔥 [핵심 수정] 과거 기록(History)을 분석해서 맞춤형 추천을 해주는 로직
-    suspend fun recommendQuestFromHistory(
-        history: List<QuestItem>,
-        installedAppNames: List<String>
-    ): String = withContext(Dispatchers.IO) {
+    // 🔥 [핵심 수정] 퀘스트 추천 로직 강화 (최소 시간 1분 보장 및 난이도 조절 명확화)
+    suspend fun recommendQuestFromHistory(history: List<QuestItem>): String = withContext(Dispatchers.IO) {
+        if (history.isEmpty()) return@withContext "아직 퀘스트 기록이 없네. 자주 쓰는 앱으로 가볍게 시작해볼까? 🌱"
 
-        // 1. 기록이 아예 없으면 기본 추천
-        if (history.isEmpty()) {
-            return@withContext "아직 퀘스트 기록이 없네. 자주 쓰는 앱으로 '30분 줄이기'부터 시작해보는 건 어때?"
+        val recentHistory = history.take(10).joinToString("\n") {
+            "- 앱: ${it.appName}, 목표: ${it.goalMinutes}분 ${it.conditionType}, 결과: ${if(it.success) "성공" else "실패"}"
         }
 
-        // 2. 과거 기록을 문자열로 요약 (최근 5개)
-        // 예: "- 유튜브: 30분 이하 (실패), - 인스타: 20분 이하 (성공)"
-        val historySummary = history.take(5).joinToString("\n") {
-            "- ${it.appName}: ${it.goalMinutes}분 ${if(it.conditionType == "≤") "줄이기" else "채우기"} -> 결과: ${if(it.success) "성공" else "실패"}"
-        }
-
-        val myAppsString = installedAppNames.take(20).joinToString(", ")
+        // 과거에 퀘스트 했던 앱들만 추출
+        val usedQuestApps = history.map { it.appName }.distinct().joinToString(", ")
 
         val prompt = """
-            사용자의 최근 퀘스트 기록이야:
-            $historySummary
+            사용자의 최근 퀘스트 기록:
+            $recentHistory
             
-            사용자가 가진 앱 목록:
-            [$myAppsString]
+            이전에 퀘스트를 진행했던 앱 목록: [$usedQuestApps]
             
-            이 기록을 분석해서 **다음에 도전할 딱 하나의 퀘스트**를 추천해줘.
+            이 기록을 바탕으로 **다음에 도전할 퀘스트 하나**를 추천해줘.
             
-            [추천 논리 - 매우 중요]
-            1. **실패한 기록이 있다면**: "지난번에 [앱이름] 퀘스트 실패했네? 이번엔 목표를 조금 더 쉽게 잡아서 다시 도전해보자!" (예: 시간을 늘려주거나 줄여주기)
-            2. **성공한 기록이 있다면**: "오, [앱이름] 퀘스트 성공했네! 이번엔 난이도를 조금 높여볼까?"
-            3. 기록이 다양하면, 가장 많이 실패한 앱을 골라서 재도전을 권유해줘.
-            4. 반드시 사용자가 가진 앱 목록에 있는 앱이어야 해.
-            5. 말투: 다정한 코치처럼 반말. (60자 이내)
+            [추천 절대 규칙 - 이거 어기면 안됨]
+            1. **무조건 '이전에 퀘스트를 진행했던 앱' 중에서만 골라.** (새로운 앱 금지)
+            2. **방향성(이상/이하) 유지**:
+               - 예전에 '이하(≤)'로 했던 앱은 이번에도 무조건 '이하(≤)'로 추천해. (절대 '이상(≥)'으로 바꾸지 마!)
+               - 예전에 '이상(≥)'으로 했던 앱은 이번에도 무조건 '이상(≥)'으로 추천해.
+            3. **난이도 조절**:
+               - 성공했으면: 난이도를 높여. (이하(≤)는 목표 시간을 줄여야 난이도가 높아짐, 이상(≥)은 목표 시간을 늘려야 난이도가 높아짐)
+               - 실패했으면: 난이도를 낮춰. (이하(≤)는 목표 시간을 늘려야 난이도가 낮아짐, 이상(≥)은 목표 시간을 줄여야 난이도가 낮아짐)
+            4. **최소 시간**: 목표 시간은 **1분 이상**으로 설정해. (0분이나 초 단위는 절대로 추천 금지)
+            5. **출력**: 추천 앱, 목표 시간, 조건을 포함한 다정한 코치 말투의 문장 하나만 출력해. (60자 이내, 반말)
+            
+            예시 출력:
+            유튜브 10분 이하 성공했으니, 이번엔 5분 이하로 줄여보는 건 어때?
+            
+            추천을 시작해줘.
         """.trimIndent()
 
-        try {
-            callGpt(prompt)
-        } catch (e: Exception) {
-            "새로운 퀘스트에 도전해볼까?"
-        }
+        try { callGpt(prompt) } catch (e: Exception) { "새로운 퀘스트에 도전해볼까?" }
     }
 
     private fun callGpt(prompt: String): String {
+        // ... (API 호출 코드는 변경 없음)
         val json = JSONObject()
         json.put("model", "gpt-3.5-turbo")
+
         val messagesArray = JSONArray()
-        messagesArray.put(JSONObject().apply {
-            put("role", "user")
-            put("content", prompt)
-        })
+        val messageObject = JSONObject()
+        messageObject.put("role", "user")
+        messageObject.put("content", prompt)
+        messagesArray.put(messageObject)
         json.put("messages", messagesArray)
 
         val body = RequestBody.create("application/json".toMediaTypeOrNull(), json.toString())
@@ -141,7 +139,7 @@ class OpenAIService(private val context: Context) {
         val response = client.newCall(request).execute()
         val responseBody = response.body?.string() ?: ""
 
-        if (!response.isSuccessful) throw Exception("API Error")
+        if (!response.isSuccessful) throw Exception("API Error ${response.code}")
 
         return JSONObject(responseBody)
             .getJSONArray("choices")
