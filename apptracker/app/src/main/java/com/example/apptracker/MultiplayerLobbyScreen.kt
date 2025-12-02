@@ -21,6 +21,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+// 뒤로가기 버튼 디자인 개선을 위한 추가
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Icon
 
 // 디자인 컬러
 private val PrimaryColor = Color(0xFF00695C)
@@ -51,7 +55,11 @@ fun MultiplayerLobbyScreen(
             // 상단바
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { navController.popBackStack() }) {
-                    Text("🔙", fontSize = 24.sp)
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "뒤로가기",
+                        tint = Color.Gray
+                    )
                 }
                 Spacer(Modifier.width(8.dp))
                 Text("멀티플레이 로비", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
