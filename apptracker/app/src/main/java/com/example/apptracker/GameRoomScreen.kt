@@ -22,6 +22,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import java.text.SimpleDateFormat
 import java.util.*
+// 뒤로가기 버튼 디자인 개선을 위한 추가
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Icon
 
 private val PrimaryColor = Color(0xFF00695C)
 private val BackgroundColor = Color(0xFFF5F7F6)
@@ -85,7 +89,13 @@ fun GameRoomScreen(
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { navController.popBackStack() }) { Text("🔙", fontSize = 24.sp) }
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "뒤로가기",
+                        tint = Color.Gray
+                    )
+                }
                 Spacer(Modifier.width(8.dp))
                 val titleText = when {
                     isFinished -> "🎉 게임 종료!"

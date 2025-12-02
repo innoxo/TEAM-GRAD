@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.google.firebase.database.*
+// 뒤로가기 버튼 디자인 개선을 위해 추가
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Icon
 
 private val PrimaryColor = Color(0xFF00695C)
 private val BackgroundColor = Color(0xFFF5F7F6)
@@ -57,7 +61,11 @@ fun RankingScreen(navController: NavHostController) {
         // 상단바
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { navController.popBackStack() }) {
-                Text("🔙", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "뒤로가기",
+                    tint = Color.Gray
+                )
             }
             Spacer(Modifier.width(8.dp))
             Text("명예의 전당", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
