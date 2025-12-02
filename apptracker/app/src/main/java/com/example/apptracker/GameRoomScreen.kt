@@ -23,6 +23,9 @@ import androidx.navigation.NavHostController
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val PrimaryColor = Color(0xFF00695C)
+private val BackgroundColor = Color(0xFFF5F7F6)
+
 @Composable
 fun GameRoomScreen(
     navController: NavHostController,
@@ -32,22 +35,18 @@ fun GameRoomScreen(
     LaunchedEffect(roomId) { vm.joinAndObserve(roomId) }
     val room = vm.currentRoom.collectAsState().value
 
-    // 🔥 [핵심 추가] 화면이 다시 보일 때마다(ON_RESUME) 시간 체크 강제 실행!
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                // 뷰모델에 있는 시간 체크 함수 호출 (새로 만듦)
-                vm.checkTimeAndRefresh()
-            }
+            if (event == Lifecycle.Event.ON_RESUME) vm.checkTimeAndRefresh()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     if (room == null) {
-        Box(Modifier.fillMaxSize().background(Color(0xFF00462A)), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Color.White)
+        Box(Modifier.fillMaxSize().background(BackgroundColor), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = PrimaryColor)
         }
         return
     }
@@ -55,11 +54,9 @@ fun GameRoomScreen(
     val isHost = (room.creator == vm.myName)
     val myInfo = room.participants[vm.myName]
     val isReady = myInfo?.isReady ?: false
-
     val isGameActive = (room.status == "active")
     val isFinished = (room.status == "finished")
     val isFailed = (room.status == "failed")
-
     val now = System.currentTimeMillis()
     val isTimeStarted = now >= room.startTime
 
@@ -68,113 +65,119 @@ fun GameRoomScreen(
     val timeRangeStr = "${timeFormat.format(Date(room.startTime))} ~ ${timeFormat.format(Date(room.endTime))}"
     val waitMinutes = ((room.startTime - now) / 60000).toInt()
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF00462A)).padding(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = { navController.popBackStack() }, colors = ButtonDefaults.buttonColors(Color.White)) { Text("나가기", color = Color.Black) }
-            Spacer(Modifier.width(12.dp))
-            val titleText = when {
-                isFinished -> "🎉 게임 종료!"
-                isFailed -> "💀 미션 실패..."
-                isGameActive && !isTimeStarted -> "⏳ 시작 대기 중"
-                isGameActive -> "🔥 게임 진행 중"
-                else -> room.title
+    Scaffold(
+        containerColor = BackgroundColor,
+        bottomBar = {
+            if (room.status == "waiting") {
+                Box(modifier = Modifier.background(Color.White).padding(16.dp)) {
+                    Button(
+                        onClick = { if (isHost) vm.startGame() else vm.toggleReady() },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isReady) Color.Gray else PrimaryColor),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        val btnText = if (isHost) "게임 시작 (방 열기)" else if (isReady) "준비 완료!" else "준비 하기"
+                        Text(btnText, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    }
+                }
             }
-            Text(titleText, color = Color.White, style = MaterialTheme.typography.titleLarge)
         }
+    ) { paddingValues ->
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { navController.popBackStack() }) { Text("🔙", fontSize = 24.sp) }
+                Spacer(Modifier.width(8.dp))
+                val titleText = when {
+                    isFinished -> "🎉 게임 종료!"
+                    isFailed -> "💀 미션 실패..."
+                    isGameActive && !isTimeStarted -> "⏳ 시작 대기 중"
+                    isGameActive -> "🔥 게임 진행 중"
+                    else -> room.title
+                }
+                Text(titleText, color = Color.Black, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            }
 
-        Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(20.dp))
 
-        if (isFinished || isFailed) {
-            val resultMessage = getResultMessage(room, vm.myName)
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(if(isFailed) Color(0xFFFFEBEE) else Color(0xFFE8F5E9))) {
-                Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(resultMessage, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Black)
-                    if (canIClaimReward(room, vm.myName) && !isFailed) {
-                        Spacer(Modifier.height(12.dp))
-                        Button(
-                            onClick = { vm.claimReward() },
-                            enabled = !(myInfo?.rewardClaimed ?: false),
-                            colors = ButtonDefaults.buttonColors(Color(0xFF00462A))
-                        ) {
-                            Text(if(myInfo?.rewardClaimed == true) "보상 획득 완료" else "🎁 보상 받기")
+            if (isFinished || isFailed) {
+                // 🔥 [에러 해결] 함수가 아래에 정의되어 있습니다!
+                val resultMessage = getResultMessage(room, vm.myName)
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(if(isFailed) Color(0xFFFFEBEE) else Color(0xFFE8F5E9))) {
+                    Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(resultMessage, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Black)
+                        if (canIClaimReward(room, vm.myName) && !isFailed) {
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = { vm.claimReward() },
+                                enabled = !(myInfo?.rewardClaimed ?: false),
+                                colors = ButtonDefaults.buttonColors(PrimaryColor),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if(myInfo?.rewardClaimed == true) "보상 획득 완료" else "🎁 보상 받기", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
+                Spacer(Modifier.height(20.dp))
             }
-            Spacer(Modifier.height(20.dp))
-        }
 
-        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(Color(0xFF003A20))) {
-            Column(Modifier.padding(16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("${room.targetAppName} ${room.goalMinutes}분 ${if(room.condition=="≤")"이하" else "이상"}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text(timeRangeStr, color = Color(0xFFBDBDBD), style = MaterialTheme.typography.bodySmall)
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("모드: ${if(room.mode=="coop") "협력" else "경쟁"}", color = if(room.mode=="coop") Color(0xFF81C784) else Color(0xFFEF5350))
-                    Spacer(Modifier.width(12.dp))
-                    val statusStr = if(isGameActive) {
-                        if(isTimeStarted) "진행 중" else "오픈 대기 (${waitMinutes}분 남음)"
-                    } else "대기실"
-                    Text(statusStr, color = Color.Yellow, fontSize = 12.sp)
-                }
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        if (isGameActive && isTimeStarted) {
-            if (room.mode == "coop") {
-                CoopProgressBar(room.participants.values.toList(), room.goalMinutes, userColors)
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(room.participants.values.toList().sortedByDescending { it.currentMinutes }) { p ->
-                        InGamePlayerCard(p, room.goalMinutes, room.condition)
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
+                Column(Modifier.padding(20.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("${room.targetAppName} ${room.goalMinutes}분 ${if(room.condition=="≤")"이하" else "이상"}", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(timeRangeStr, color = Color.Gray, fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("모드: ${if(room.mode=="coop") "협력" else "경쟁"}", color = if(room.mode=="coop") Color(0xFF4CAF50) else Color(0xFFEF5350), fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(12.dp))
+                        val statusStr = if(isGameActive) {
+                            if(isTimeStarted) "진행 중" else "오픈 대기 (${waitMinutes}분 남음)"
+                        } else "대기실"
+                        Text(statusStr, color = PrimaryColor, fontSize = 14.sp)
                     }
                 }
             }
-        } else if (isGameActive && !isTimeStarted) {
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("⏳", fontSize = 50.sp)
-                    Spacer(Modifier.height(16.dp))
-                    Text("게임 시작 대기 중...", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    Text("설정된 시간(${timeFormat.format(Date(room.startTime))})이 되면\n자동으로 측정이 시작됩니다.", color = Color.LightGray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                }
-            }
-        } else if (isFinished || isFailed) {
-            // 결과창
-        } else {
-            Text("참가자 대기 중 (${room.participants.size}명)", color = Color.White, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                itemsIndexed(room.participants.values.toList()) { index, p ->
-                    val color = if (room.mode == "coop") userColors[index % userColors.size] else Color.White
-                    ParticipantCard(p, room.creator, color, room.mode == "coop")
-                }
-            }
-        }
 
-        Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(24.dp))
 
-        if (room.status == "waiting") {
-            Button(
-                onClick = { if (isHost) vm.startGame() else vm.toggleReady() },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = if (isReady) Color.Gray else Color.White)
-            ) {
-                val btnText = if (isHost) "게임 시작 (방 열기)" else if (isReady) "준비 완료!" else "준비 하기"
-                Text(btnText, color = Color.Black, fontWeight = FontWeight.Bold)
+            if (isGameActive && isTimeStarted) {
+                if (room.mode == "coop") {
+                    CoopProgressBar(room.participants.values.toList(), room.goalMinutes, userColors)
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(room.participants.values.toList().sortedByDescending { it.currentMinutes }) { p ->
+                            InGamePlayerCard(p, room.goalMinutes, room.condition)
+                        }
+                    }
+                }
+            } else if (isGameActive && !isTimeStarted) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("⏳", fontSize = 60.sp)
+                        Spacer(Modifier.height(16.dp))
+                        Text("게임 시작 대기 중...", color = Color.Black, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Text("설정된 시간이 되면\n자동으로 시작됩니다.", color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                }
+            } else if (!isFinished && !isFailed) {
+                Text("참가자 (${room.participants.size}명)", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Spacer(Modifier.height(12.dp))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    itemsIndexed(room.participants.values.toList()) { index, p ->
+                        val color = if (room.mode == "coop") userColors[index % userColors.size] else Color.White
+                        ParticipantCard(p, room.creator, color, room.mode == "coop")
+                    }
+                }
             }
         }
     }
 }
 
-// ... (하단 함수들은 기존과 동일, 그대로 두세요) ...
+// 🔥 [핵심 추가] 아래 함수들이 파일 내부에 있어야 합니다!
+
 fun getResultMessage(room: Room, myName: String): String {
     if (room.status == "failed") return "💥 미션 실패! (목표 초과)"
     if (room.mode == "coop") return "🎉 협력 성공! 모두 고생하셨습니다."
@@ -203,8 +206,8 @@ fun CoopProgressBar(participants: List<Participant>, goalMinutes: Int, colors: L
     Card(colors = CardDefaults.cardColors(Color.White), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("팀 전체 달성도", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("$totalUsed / ${goalMinutes}분 ($progressPercent%)", fontWeight = FontWeight.Bold, color = Color(0xFF00462A))
+                Text("팀 전체 달성도", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
+                Text("$totalUsed / ${goalMinutes}분 ($progressPercent%)", fontWeight = FontWeight.Bold, color = PrimaryColor)
             }
             Spacer(Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(15.dp)).background(Color.LightGray)) {
@@ -246,7 +249,7 @@ fun ParticipantCard(p: Participant, creatorName: String, color: Color, isCoop: B
                     Text(if (p.isReady) "READY" else "WAIT", color = Color.White, style = MaterialTheme.typography.labelSmall)
                 }
             } else {
-                Text("방장", color = Color(0xFF00462A), fontWeight = FontWeight.Bold)
+                Text("방장", color = PrimaryColor, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -256,11 +259,11 @@ fun ParticipantCard(p: Participant, creatorName: String, color: Color, isCoop: B
 fun InGamePlayerCard(p: Participant, goal: Int, condition: String) {
     val progress = (p.currentMinutes.toFloat() / goal).coerceIn(0f, 1f)
     val isOver = p.currentMinutes > goal
-    val barColor = if(condition == "≤" && isOver) Color.Red else Color(0xFF4CAF50)
+    val barColor = if(condition == "≤" && isOver) Color.Red else PrimaryColor
     Card(colors = CardDefaults.cardColors(Color.White), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(p.nickname, fontWeight = FontWeight.Bold)
+                Text(p.nickname, fontWeight = FontWeight.Bold, color = Color.Black)
                 Text("${p.currentMinutes} / ${goal}분", color = Color.DarkGray)
             }
             Spacer(Modifier.height(8.dp))

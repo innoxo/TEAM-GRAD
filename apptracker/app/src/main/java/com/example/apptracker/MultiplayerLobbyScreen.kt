@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,6 +21,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+
+// 디자인 컬러
+private val PrimaryColor = Color(0xFF00695C)
+private val BackgroundColor = Color(0xFFF5F7F6)
 
 @Composable
 fun MultiplayerLobbyScreen(
@@ -39,25 +44,38 @@ fun MultiplayerLobbyScreen(
     var tabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("진행 중", "완료됨")
 
-    // 🔥 내 이름 가져오기
     val myName = vm.myName
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF00462A))) {
+    Box(modifier = Modifier.fillMaxSize().background(BackgroundColor)) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // 상단바
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { navController.popBackStack() }, colors = ButtonDefaults.buttonColors(Color.White)) { Text("뒤로가기", color = Color.Black) }
-                Spacer(Modifier.width(12.dp))
-                Text("멀티플레이 로비", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Text("🔙", fontSize = 24.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text("멀티플레이 로비", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
             }
 
             Spacer(Modifier.height(20.dp))
 
-            TabRow(selectedTabIndex = tabIndex, containerColor = Color(0xFF00462A), contentColor = Color.White) {
+            // 탭 메뉴
+            TabRow(
+                selectedTabIndex = tabIndex,
+                containerColor = BackgroundColor,
+                contentColor = PrimaryColor,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[tabIndex]),
+                        color = PrimaryColor
+                    )
+                }
+            ) {
                 tabs.forEachIndexed { index, text ->
                     Tab(
                         selected = tabIndex == index,
                         onClick = { tabIndex = index },
-                        text = { Text(text, fontWeight = FontWeight.Bold, color = if (tabIndex == index) Color.White else Color.Gray) }
+                        text = { Text(text, fontWeight = FontWeight.Bold, fontSize = 16.sp) }
                     )
                 }
             }
@@ -68,14 +86,16 @@ fun MultiplayerLobbyScreen(
 
             if (currentList.isEmpty()) {
                 Box(Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
-                    val emptyText = if (tabIndex == 0) "진행 중인 방이 없습니다.\n방을 만들어보세요!" else "완료된 방이 없습니다."
-                    Text(emptyText, color = Color.LightGray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    val msg = if (tabIndex == 0) "진행 중인 방이 없습니다.\n우측 하단 버튼을 눌러 방을 만들어보세요!" else "완료된 방이 없습니다."
+                    Text(msg, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(currentList) { room ->
-                        Box(modifier = Modifier.clickable { navController.navigate("game_room/${room.roomId}") }) {
-                            // 🔥 내 이름(myName)도 같이 전달!
+                        Box(modifier = Modifier.clickable {
+                            navController.navigate("game_room/${room.roomId}")
+                        }) {
+                            // 🔥 [에러 해결] 이 함수가 아래쪽에 정의되어 있어야 합니다!
                             RoomItemCard(room, myName)
                         }
                     }
@@ -84,7 +104,12 @@ fun MultiplayerLobbyScreen(
         }
 
         if (tabIndex == 0) {
-            FloatingActionButton(onClick = { showDialog = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp), containerColor = Color.White) { Text("➕", style = MaterialTheme.typography.titleLarge) }
+            FloatingActionButton(
+                onClick = { showDialog = true },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
+                containerColor = PrimaryColor,
+                contentColor = Color.White
+            ) { Text("➕", fontSize = 24.sp) }
         }
     }
 
@@ -106,9 +131,10 @@ fun MultiplayerLobbyScreen(
     }
 }
 
+// 🔥 [추가됨] RoomItemCard 함수 정의
 @Composable
 fun RoomItemCard(room: Room, myName: String) {
-    val modeColor = if (room.mode == "coop") Color(0xFF4CAF50) else Color(0xFFF44336)
+    val modeColor = if (room.mode == "coop") Color(0xFF4CAF50) else Color(0xFFEF5350)
     val modeText = if (room.mode == "coop") "협력" else "경쟁"
 
     val statusText = when(room.status) {
@@ -119,46 +145,46 @@ fun RoomItemCard(room: Room, myName: String) {
         else -> ""
     }
 
-    // 🔥 [핵심] 보상 미수령 체크
     val myInfo = room.participants[myName]
     val isUnclaimed = if (room.status == "finished" && myInfo != null && !myInfo.rewardClaimed) {
-        if (room.mode == "coop") true // 협력 성공이면 무조건 보상 있음
-        else room.winner == myName // 경쟁이면 승자만 보상 있음
+        if (room.mode == "coop") true else room.winner == myName
     } else false
 
     Card(
-        colors = CardDefaults.cardColors(Color.White),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         modifier = Modifier.fillMaxWidth(),
-        // 보상 안 받았으면 빨간 테두리로 강조
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(2.dp),
         border = if(isUnclaimed) androidx.compose.foundation.BorderStroke(2.dp, Color.Red) else null
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(20.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row {
-                    Text("[$modeText]", color = modeColor, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = modeColor.copy(alpha=0.1f), shape = RoundedCornerShape(6.dp)) {
+                        Text(modeText, color = modeColor, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 12.sp)
+                    }
                     Spacer(Modifier.width(8.dp))
-                    Text(room.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(room.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
                 }
 
-                // 🔥 보상 안 받았으면 텍스트 띄우기
                 if (isUnclaimed) {
-                    Text("🎁 보상 미수령!", color = Color.Red, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("🎁 보상 미수령", color = Color.Red, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 } else {
                     Text(statusText, fontSize = 12.sp, color = Color.Gray)
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Text("목표: ${room.targetAppName} ${room.goalMinutes}분 ${if(room.condition=="≤")"이하" else "이상"}")
-            Text("참여: ${room.participants.size}명")
+            Spacer(Modifier.height(12.dp))
+            Text("목표: ${room.targetAppName} ${room.goalMinutes}분 ${if(room.condition=="≤")"이하" else "이상"}", color = Color.DarkGray)
+            Spacer(Modifier.height(4.dp))
+            Text("참여 인원: ${room.participants.size}명", color = Color.Gray, fontSize = 12.sp)
         }
     }
 }
 
-// ... (나머지 CreateRoomDialog, LobbyWheelPicker는 기존 코드와 동일) ...
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateRoomDialog(
@@ -180,7 +206,7 @@ fun CreateRoomDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(colors = CardDefaults.cardColors(Color.White), shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState())) {
-                Text("방 만들기", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("방 만들기", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.Black)
                 Spacer(Modifier.height(16.dp))
 
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("방 제목") }, singleLine = true)
@@ -202,15 +228,8 @@ fun CreateRoomDialog(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
-                        value = goalMinutes, 
-                        onValueChange = { newValue ->
-                            // c: Char 라고 타입을 명시
-                            if (newValue.all { c: Char -> c.isDigit() }) {
-                                goalMinutes = newValue
-                            }
-                        },
-                        label = { Text("목표(분)") }, 
-                        modifier = Modifier.weight(1f)
+                        value = goalMinutes, onValueChange = { if(it.all { c -> c.isDigit() }) goalMinutes = it },
+                        label = { Text("목표(분)") }, modifier = Modifier.weight(1f)
                     )
                     Spacer(Modifier.width(8.dp))
                     Column {
@@ -258,8 +277,8 @@ fun CreateRoomDialog(
                                 onCreate(title, selectedMode, selectedApp!!, goalMinutes.toIntOrNull() ?: 10, condition)
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(Color(0xFF00462A))
-                    ) { Text("생성") }
+                        colors = ButtonDefaults.buttonColors(PrimaryColor)
+                    ) { Text("생성", color = Color.White) }
                 }
             }
         }
