@@ -42,13 +42,19 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
     private val _targetMinutes = MutableStateFlow(10)
     val targetMinutes = _targetMinutes.asStateFlow()
 
-    private val _startHour = MutableStateFlow(9)
+    // 🔥 [수정됨] 고정된 9시가 아니라, '현재 시간'으로 초기화
+    private val now = Calendar.getInstance()
+    private val _startHour = MutableStateFlow(now.get(Calendar.HOUR_OF_DAY))
     val startHour = _startHour.asStateFlow()
-    private val _startMinute = MutableStateFlow(0)
+
+    // 분은 5분 단위로 깔끔하게
+    private val _startMinute = MutableStateFlow((now.get(Calendar.MINUTE) / 5) * 5)
     val startMinute = _startMinute.asStateFlow()
 
-    private val _endHour = MutableStateFlow(18)
+    // 종료 시간은 시작 시간 + 1시간으로 자동 설정
+    private val _endHour = MutableStateFlow((now.get(Calendar.HOUR_OF_DAY) + 1) % 24)
     val endHour = _endHour.asStateFlow()
+
     private val _endMinute = MutableStateFlow(0)
     val endMinute = _endMinute.asStateFlow()
 
@@ -68,7 +74,7 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
 
             val usageMap = mutableMapOf<String, Long>()
             stats?.forEach { if(it.totalTimeInForeground > 0) usageMap[it.packageName] = it.totalTimeInForeground }
-            
+
             // 오늘 실제로 쓴 앱 개수
             val activeCount = usageMap.size
 
@@ -90,7 +96,7 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
                 }
             }
             _appList.value = apps
-            
+
             // AI 추천 로직
             loadRecommendations(apps)
         }
@@ -107,18 +113,53 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
     fun selectApp(app: App) { _selectedApp.value = app }
     fun setCondition(c: String) { _conditionType.value = c }
     fun setTargetMinutes(v: Int) { _targetMinutes.value = v }
-    fun setStartHour(v: Int) { 
+
+    // 🔥 [수정됨] 시간 설정 시 과거 시간 방지 로직 복구
+    fun setStartHour(v: Int) {
         val current = Calendar.getInstance()
         val currentHour = current.get(Calendar.HOUR_OF_DAY)
-        if (v < currentHour) _startHour.value = currentHour else _startHour.value = v
+
+        if (v < currentHour) {
+            _startHour.value = currentHour
+        } else {
+            _startHour.value = v
+        }
+        validateMinutes()
     }
-    fun setStartMinute(v: Int) { _startMinute.value = v }
+
+    fun setStartMinute(v: Int) {
+        _startMinute.value = v
+        validateMinutes()
+    }
+
+    // 분 단위 검증 (시간이 같을 때 분이 과거면 안됨)
+    private fun validateMinutes() {
+        val current = Calendar.getInstance()
+        val currentHour = current.get(Calendar.HOUR_OF_DAY)
+        val currentMinute = current.get(Calendar.MINUTE)
+
+        if (_startHour.value == currentHour && _startMinute.value < currentMinute) {
+            val next5Min = ((currentMinute / 5) + 1) * 5
+            if (next5Min < 60) {
+                _startMinute.value = next5Min
+            } else {
+                _startHour.value = (_startHour.value + 1) % 24
+                _startMinute.value = 0
+            }
+        }
+    }
+
     fun setEndHour(v: Int) { _endHour.value = v }
     fun setEndMinute(v: Int) { _endMinute.value = v }
 
     fun createQuest(onSuccess: () -> Unit) {
         if (_isLoading.value) return
-        val app = selectedApp.value ?: return
+        val app = selectedApp.value
+
+        if (app == null) {
+            Toast.makeText(getApplication(), "앱을 먼저 선택해주세요!", Toast.LENGTH_SHORT).show()
+            return
+        }
 
         _isLoading.value = true
         val finalMinutes = if (targetMinutes.value <= 0) 10 else targetMinutes.value
@@ -127,7 +168,8 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         val startCal = now.clone() as Calendar
         startCal.set(Calendar.HOUR_OF_DAY, startHour.value)
         startCal.set(Calendar.MINUTE, startMinute.value)
-        
+
+        // 시작 시간 보정
         if (startCal.timeInMillis < System.currentTimeMillis() - 60000) {
             startCal.timeInMillis = System.currentTimeMillis()
         }
@@ -135,7 +177,10 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         val endCal = now.clone() as Calendar
         endCal.set(Calendar.HOUR_OF_DAY, endHour.value)
         endCal.set(Calendar.MINUTE, endMinute.value)
-        if (endCal.timeInMillis <= startCal.timeInMillis) endCal.add(Calendar.DAY_OF_MONTH, 1)
+
+        if (endCal.timeInMillis <= startCal.timeInMillis) {
+            endCal.add(Calendar.DAY_OF_MONTH, 1)
+        }
 
         val quest = QuestItem(
             id = System.currentTimeMillis().toString(),

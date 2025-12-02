@@ -22,10 +22,8 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var totalUsage = 0
         private set
-
     var dailySummary = mutableStateOf("분석 중...")
         private set
-
     var questRecommendation = mutableStateOf("기록을 분석하고 있어...")
         private set
 
@@ -39,26 +37,18 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
             val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
 
             val aggregatedStats = mutableMapOf<String, Long>()
-            stats?.forEach {
-                val current = aggregatedStats.getOrDefault(it.packageName, 0L)
-                aggregatedStats[it.packageName] = current + it.totalTimeInForeground
-            }
+            stats?.forEach { aggregatedStats[it.packageName] = aggregatedStats.getOrDefault(it.packageName, 0L) + it.totalTimeInForeground }
 
             val localCategoryMinutes = mutableMapOf<String, Int>()
             val localCategoryApps = mutableMapOf<String, MutableList<AppUsage>>()
             var total = 0
-            val myUsedAppNames = mutableListOf<String>()
 
             withContext(Dispatchers.IO) {
                 aggregatedStats.forEach { (pkg, time) ->
                     if (pkg == context.packageName) return@forEach
-
                     val minutes = (time / 60000L).toInt()
-                    val appName = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg }
-
-                    myUsedAppNames.add(appName) // 사용한 앱 이름 수집
-
                     if (minutes < 1) return@forEach
+                    val appName = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg }
                     val category = try { gpt.classifyApp(pkg) } catch (e: Exception) { "기타" }
 
                     localCategoryMinutes[category] = (localCategoryMinutes[category] ?: 0) + minutes
@@ -72,22 +62,22 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
             categoryApps = localCategoryApps
             totalUsage = total
 
-            // 1. 하루 요약 (비율 기반)
-            dailySummary.value = gpt.generateDailySummary(localCategoryMinutes)
+            // 1. 하루 요약
+            if (total > 0) dailySummary.value = gpt.generateDailySummary(localCategoryMinutes)
+            else dailySummary.value = "기록이 없어서 분석할 게 없네!"
 
-            // 2. 🔥 퀘스트 추천 (과거 기록 기반)
+            // 🔥 2. [수정됨] 퀘스트 추천 (history만 넘김)
             val allQuests = questRepo.loadAllQuests()
-            // 완료된(성공 or 실패) 퀘스트만 골라냄
-            val history = allQuests.filter { it.status == "completed" }
+            val history = allQuests.filter { it.status == "completed" } // 성공/실패한 퀘스트만
 
-            // 기록과 앱 목록을 함께 보냄
-            questRecommendation.value = gpt.recommendQuestFromHistory(history, myUsedAppNames)
+            questRecommendation.value = gpt.recommendQuestFromHistory(history)
         }
     }
 }
 
 class UsageViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        @Suppress("UNCHECKED_CAST")
         return UsageViewModel(application) as T
     }
 }
