@@ -1,13 +1,14 @@
 package com.example.apptracker
 
 import android.app.Application
+import android.app.usage.UsageStatsManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.database.FirebaseDatabase
-// 🔥 [중요] AI 추천 엔진 import
 import com.example.apptracker.ai.AppClusteringEngine
+import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,11 +22,7 @@ import java.util.*
 class QuestCreateViewModel(application: Application) : AndroidViewModel(application) {
 
     private val pm = application.packageManager
-
-    // 1. 추천 알고리즘용 Repository
     private val repo = QuestRepository()
-
-    // 2. 퀘스트 생성용 직접 DB 연결 (quests_v3)
     private val db = FirebaseDatabase.getInstance(
         "https://apptrackerdemo-569ea-default-rtdb.firebaseio.com"
     ).reference
@@ -33,7 +30,6 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
     private val _appList = MutableStateFlow<List<App>>(emptyList())
     val appList = _appList.asStateFlow()
 
-    // 🔥 추천 앱 리스트 (화면 에러 방지)
     private val _recommendedApps = MutableStateFlow<List<App>>(emptyList())
     val recommendedApps = _recommendedApps.asStateFlow()
 
@@ -61,23 +57,41 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
 
     fun loadInstalledApps() {
         viewModelScope.launch {
+            val context = getApplication<Application>()
+            val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+
+            // 오늘 사용량 조회 (00:00 ~ 현재)
+            val calendar = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }
+            val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, calendar.timeInMillis, System.currentTimeMillis())
+
+            val usageMap = mutableMapOf<String, Long>()
+            stats?.forEach { if(it.totalTimeInForeground > 0) usageMap[it.packageName] = it.totalTimeInForeground }
+            
+            // 오늘 실제로 쓴 앱 개수
+            val activeCount = usageMap.size
+
             val apps = withContext(Dispatchers.IO) {
                 val allApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                val myPackage = getApplication<Application>().packageName
+                val myPackage = context.packageName
 
-                allApps.filter { appInfo ->
-                    pm.getLaunchIntentForPackage(appInfo.packageName) != null &&
-                            appInfo.packageName != myPackage
-                }.map { appInfo ->
-                    App(
-                        appName = pm.getApplicationLabel(appInfo).toString(),
-                        packageName = appInfo.packageName
-                    )
-                }.sortedBy { it.appName }
+                val rawList = allApps.filter {
+                    pm.getLaunchIntentForPackage(it.packageName) != null && it.packageName != myPackage
+                }.map {
+                    App(pm.getApplicationLabel(it).toString(), it.packageName)
+                }
+
+                // 4개 이상이면 사용량 순, 아니면 가나다 순 정렬함.
+                if (activeCount >= 4) {
+                    rawList.sortedWith(compareByDescending<App> { usageMap[it.packageName] ?: 0L }.thenBy { it.appName })
+                } else {
+                    rawList.sortedBy { it.appName }
+                }
             }
             _appList.value = apps
-
-            // 🔥 앱 로딩 후 추천 알고리즘 실행
+            
+            // AI 추천 로직
             loadRecommendations(apps)
         }
     }
@@ -93,8 +107,7 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
     fun selectApp(app: App) { _selectedApp.value = app }
     fun setCondition(c: String) { _conditionType.value = c }
     fun setTargetMinutes(v: Int) { _targetMinutes.value = v }
-
-    fun setStartHour(v: Int) {
+    fun setStartHour(v: Int) { 
         val current = Calendar.getInstance()
         val currentHour = current.get(Calendar.HOUR_OF_DAY)
         if (v < currentHour) _startHour.value = currentHour else _startHour.value = v
@@ -105,25 +118,16 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
 
     fun createQuest(onSuccess: () -> Unit) {
         if (_isLoading.value) return
-
-        val app = selectedApp.value
-        if (app == null) {
-            Toast.makeText(getApplication(), "앱을 먼저 선택해주세요!", Toast.LENGTH_SHORT).show()
-            return
-        }
+        val app = selectedApp.value ?: return
 
         _isLoading.value = true
         val finalMinutes = if (targetMinutes.value <= 0) 10 else targetMinutes.value
 
-        val now = Calendar.getInstance().apply {
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-
+        val now = Calendar.getInstance().apply { set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
         val startCal = now.clone() as Calendar
         startCal.set(Calendar.HOUR_OF_DAY, startHour.value)
         startCal.set(Calendar.MINUTE, startMinute.value)
-
+        
         if (startCal.timeInMillis < System.currentTimeMillis() - 60000) {
             startCal.timeInMillis = System.currentTimeMillis()
         }
@@ -131,10 +135,7 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         val endCal = now.clone() as Calendar
         endCal.set(Calendar.HOUR_OF_DAY, endHour.value)
         endCal.set(Calendar.MINUTE, endMinute.value)
-
-        if (endCal.timeInMillis <= startCal.timeInMillis) {
-            endCal.add(Calendar.DAY_OF_MONTH, 1)
-        }
+        if (endCal.timeInMillis <= startCal.timeInMillis) endCal.add(Calendar.DAY_OF_MONTH, 1)
 
         val quest = QuestItem(
             id = System.currentTimeMillis().toString(),
@@ -153,23 +154,15 @@ class QuestCreateViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             try {
                 withTimeout(3000L) {
-                    db.child("quests_v3").child(nickname).child(quest.id)
-                        .setValue(quest)
-                        .await()
+                    db.child("quests_v3").child(nickname).child(quest.id).setValue(quest).await()
                 }
                 Toast.makeText(getApplication(), "퀘스트 생성 완료!", Toast.LENGTH_SHORT).show()
                 onSuccess()
             } catch (e: Exception) {
-                Toast.makeText(getApplication(), "저장 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(getApplication(), "오류: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 _isLoading.value = false
             }
         }
     }
 }
-
-// 🔥 [필수] App 데이터 클래스 (다른 파일에서 참조함)
-data class App(
-    val appName: String,
-    val packageName: String
-)
