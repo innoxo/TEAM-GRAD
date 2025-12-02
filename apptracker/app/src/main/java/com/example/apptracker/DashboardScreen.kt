@@ -1,14 +1,19 @@
 package com.example.apptracker
 
 import android.app.Application
-import android.graphics.Color
+import android.graphics.Color // 🔥 차트용 컬러 (안드로이드 기본)
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color as ComposeColor // 🔥 UI용 컬러 (Compose, 별칭 사용)
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -16,13 +21,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import androidx.compose.ui.graphics.Brush // 추가
-import androidx.compose.ui.text.TextStyle // 추가
+// 🔥 차트 데이터 관련 import 필수!
 import com.github.mikephil.charting.charts.PieChart
+import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
-import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.highlight.Highlight
 import com.github.mikephil.charting.listener.OnChartValueSelectedListener
 
@@ -32,55 +36,116 @@ fun DashboardScreen(navController: NavHostController) {
 
     val context = LocalContext.current
     val app = context.applicationContext as Application
-
     val viewModel: UsageViewModel = viewModel(factory = UsageViewModelFactory(app))
 
-    LaunchedEffect(Unit) {
-        viewModel.loadUsageData()
-    }
+    LaunchedEffect(Unit) { viewModel.loadUsageData() }
 
     val categoryMinutes = viewModel.categoryMinutes
     val categoryApps = viewModel.categoryApps
     val totalUsage = viewModel.totalUsage
-
-    // 두 가지 AI 멘트 가져오기
     val aiSummary = viewModel.dailySummary.value
-    val aiQuestRec = viewModel.questRecommendation.value // 🔥 추가됨
+    val aiQuestRec = viewModel.questRecommendation.value
 
     var showSheet by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
+    val scrollState = rememberScrollState()
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(ComposeColor(0xFF00462A)).padding(16.dp),
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column {
-            // 1. 사용할 색상 정의 (연두색)
-            val LimeGreen = ComposeColor(0xFF32CD32) // 연두 코드
+    // UI 디자인용 색상
+    val LimeGreen = ComposeColor(0xFF32CD32)
+    val gradientBrush = Brush.horizontalGradient(
+        colors = listOf(ComposeColor.White, LimeGreen)
+    )
 
-            // 2. 그라데이션 브러시 생성 (왼쪽: 흰색 -> 오른쪽: 연두색)
-            val gradientBrush = Brush.horizontalGradient(
-                colors = listOf(ComposeColor.White, LimeGreen)
-            )
-
+    Scaffold(
+        containerColor = ComposeColor(0xFF00462A),
+        bottomBar = {
+            // 하단 메뉴
+            Surface(
+                shadowElevation = 16.dp,
+                color = ComposeColor.White,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { navController.navigate("quest") },
+                        modifier = Modifier.weight(1f).height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ComposeColor(0xFFF0F4F3)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("🔥 퀘스트", color = ComposeColor(0xFF00695C), fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = { navController.navigate("multiplayer_lobby") },
+                        modifier = Modifier.weight(1.5f).height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ComposeColor(0xFF00695C)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("🤝 멀티플레이", color = ComposeColor.White, fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = { navController.navigate("ranking") },
+                        modifier = Modifier.weight(1f).height(52.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ComposeColor(0xFFF0F4F3)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("🏆 랭킹", color = ComposeColor(0xFF00695C), fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .verticalScroll(scrollState)
+                .padding(20.dp)
+        ) {
+            // 타이틀
             Text(
-                text = "Play&Focus",
-                // 기존 color = Color.White 속성은 지우고, style에 brush를 적용합니다.
+                text = "AppTracker",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     brush = gradientBrush,
                     fontWeight = FontWeight.Bold
                 )
             )
-            Spacer(Modifier.height(16.dp))
 
-            // 1. 오늘의 한 줄 요약
+            Spacer(Modifier.height(24.dp))
+
+            // 1. 총 사용 시간
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = ComposeColor.White),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp))
+            ) {
+                Column(Modifier.padding(24.dp)) {
+                    Text("오늘 총 사용 시간", color = ComposeColor.Gray, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(4.dp))
+                    val hours = totalUsage / 60
+                    val mins = totalUsage % 60
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("$hours", fontSize = 42.sp, fontWeight = FontWeight.Bold, color = ComposeColor(0xFF191C1B))
+                        Text("시간", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ComposeColor(0xFF191C1B), modifier = Modifier.padding(bottom = 8.dp, start = 2.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("$mins", fontSize = 42.sp, fontWeight = FontWeight.Bold, color = ComposeColor(0xFF191C1B))
+                        Text("분", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ComposeColor(0xFF191C1B), modifier = Modifier.padding(bottom = 8.dp, start = 2.dp))
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // 2. AI 분석
+            Card(
                 colors = CardDefaults.cardColors(containerColor = ComposeColor(0xFFE8F5E9)),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("🤖 AI 분석", color = ComposeColor(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("🤖 AI 분석", color = ComposeColor(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(aiSummary, color = ComposeColor.Black, fontWeight = FontWeight.Medium, fontSize = 16.sp)
                 }
@@ -88,70 +153,88 @@ fun DashboardScreen(navController: NavHostController) {
 
             Spacer(Modifier.height(8.dp))
 
-            // 🔥 2. [추가됨] 퀘스트 추천 카드
+            // 3. 퀘스트 추천
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = ComposeColor(0xFFFFF3E0)), // 연한 주황색
-                shape = RoundedCornerShape(12.dp)
+                colors = CardDefaults.cardColors(containerColor = ComposeColor(0xFFFFF3E0)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("🎯 다음 퀘스트 추천", color = ComposeColor(0xFFE65100), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("🎯 다음 퀘스트 추천", color = ComposeColor(0xFFE65100), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(aiQuestRec, color = ComposeColor.Black, fontWeight = FontWeight.Medium, fontSize = 16.sp)
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
-            Text("오늘 총 사용시간: ${totalUsage}분", color = ComposeColor.White, fontSize = 18.sp)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(24.dp))
 
-            // 차트 (기존 유지)
-            AndroidView(
-                modifier = Modifier.fillMaxWidth().height(200.dp), // 공간 확보를 위해 높이 조금 줄임
-                factory = { ctx ->
-                    PieChart(ctx).apply {
-                        description.isEnabled = false
-                        setHoleColor(Color.TRANSPARENT)
-                        setEntryLabelColor(Color.WHITE)
-                        legend.textColor = Color.WHITE
-                        legend.isEnabled = false
-                    }
-                },
-                update = { chart ->
-                    if (categoryMinutes.isNotEmpty()) {
-                        val entries = categoryMinutes.map { PieEntry(it.value.toFloat(), it.key) }
-                        val dataSet = PieDataSet(entries, "").apply {
-                            colors = listOf(Color.parseColor("#66BB6A"), Color.parseColor("#42A5F5"), Color.parseColor("#EF5350"), Color.parseColor("#FFCA28"), Color.parseColor("#BDBDBD"))
-                            valueTextColor = Color.WHITE
-                            valueTextSize = 14f
+            // 4. 차트
+            Text("카테고리별 비율", color = ComposeColor.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Spacer(Modifier.height(10.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = ComposeColor.White),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth().height(300.dp).shadow(2.dp, RoundedCornerShape(24.dp))
+            ) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize().padding(20.dp),
+                    factory = { ctx ->
+                        PieChart(ctx).apply {
+                            description.isEnabled = false
+                            // 🔥 Color.TRANSPARENT 등은 android.graphics.Color를 씁니다.
+                            setHoleColor(Color.TRANSPARENT)
+                            setEntryLabelColor(Color.DKGRAY)
+                            setEntryLabelTextSize(10f)
+                            legend.isEnabled = false
+                            animateY(1000)
                         }
-                        chart.data = PieData(dataSet)
-                        chart.invalidate()
-                        chart.setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
-                            override fun onValueSelected(e: Entry?, h: Highlight?) {
-                                e?.let { selectedCategory = (it as PieEntry).label; showSheet = true }
+                    },
+                    update = { chart ->
+                        if (categoryMinutes.isNotEmpty()) {
+                            val entries = categoryMinutes.filter { it.value > 0 }.map { PieEntry(it.value.toFloat(), it.key) }
+                            val dataSet = PieDataSet(entries, "").apply {
+                                // 🔥 parseColor도 android.graphics.Color 기능입니다.
+                                colors = listOf(
+                                    Color.parseColor("#26A69A"), Color.parseColor("#42A5F5"),
+                                    Color.parseColor("#FFA726"), Color.parseColor("#EF5350"), Color.parseColor("#78909C")
+                                )
+                                valueTextColor = Color.WHITE
+                                valueTextSize = 14f
+                                sliceSpace = 2f
                             }
-                            override fun onNothingSelected() {}
-                        })
-                    }
-                }
-            )
-        }
+                            chart.data = PieData(dataSet)
+                            chart.invalidate()
 
-        // 하단 버튼들 (기존 유지)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { navController.navigate("quest") }, modifier = Modifier.weight(1f).height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = ComposeColor.White), shape = RoundedCornerShape(12.dp)) { Text("퀘스트", color = ComposeColor.Black, fontWeight = FontWeight.Bold) }
-                Button(onClick = { navController.navigate("ranking") }, modifier = Modifier.weight(1f).height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = ComposeColor.White), shape = RoundedCornerShape(12.dp)) { Text("랭킹", color = ComposeColor.Black, fontWeight = FontWeight.Bold) }
+                            chart.setOnChartValueSelectedListener(object : OnChartValueSelectedListener {
+                                // 🔥 여기서 e는 Entry? 타입입니다.
+                                override fun onValueSelected(e: Entry?, h: Highlight?) {
+                                    val pieEntry = e as? PieEntry ?: return
+                                    selectedCategory = pieEntry.label
+                                    showSheet = true
+                                }
+                                override fun onNothingSelected() {}
+                            })
+                        }
+                    }
+                )
             }
-            Button(onClick = { navController.navigate("multiplayer_lobby") }, modifier = Modifier.fillMaxWidth().height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = ComposeColor(0xFFE8F5E9)), shape = RoundedCornerShape(12.dp)) { Text("🤝 멀티플레이 (협력/경쟁)", color = ComposeColor(0xFF2E7D32), fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(20.dp))
         }
     }
 
     if (showSheet && selectedCategory != null) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(onDismissRequest = { showSheet = false }, sheetState = sheetState, containerColor = ComposeColor(0xFF00462A)) {
-            CategoryDetailSheet(category = selectedCategory!!, apps = categoryApps[selectedCategory] ?: emptyList(), onClose = { showSheet = false })
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            sheetState = sheetState,
+            containerColor = ComposeColor.White
+        ) {
+            CategoryDetailSheet(
+                category = selectedCategory!!,
+                apps = categoryApps[selectedCategory] ?: emptyList(),
+                onClose = { showSheet = false }
+            )
         }
     }
 }

@@ -42,7 +42,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun checkTimeOver(room: Room) {
         val now = System.currentTimeMillis()
         if (now >= room.endTime && room.status == "active") {
-            // 🔥 [수정] 시간이 다 됐으면, 방장뿐만 아니라 '누구든' 발견한 사람이 종료 신호를 보냅니다.
             viewModelScope.launch { finishGameByTimeUp(room) }
         }
     }
@@ -90,25 +89,32 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val now = System.currentTimeMillis()
-
-                if (now < current.startTime) {
-                    delay(1000)
-                    continue
-                }
+                if (now < current.startTime) { delay(1000); continue }
 
                 if (now >= current.endTime) {
-                    // 🔥 [수정] 시간 종료도 누구나 처리 가능
                     finishGameByTimeUp(current)
                     isTracking = false
                     break
                 }
 
-                val used = session.measureAppUsage(current.startTime, min(now, current.endTime), current.targetPackage)
+                // 🔥 [수정] 목표와 조건을 넘겨서 엄격한 검사 수행
+                val used = session.measureAppUsage(
+                    start = current.startTime,
+                    end = min(now, current.endTime),
+                    pkg = current.targetPackage,
+                    goalMinutes = current.goalMinutes,
+                    condition = current.condition
+                )
+
                 repo.updateParticipantProgress(current.roomId, myName, used)
 
-                // 🔥 [핵심 수정] 방장만 체크하던 걸 '모든 참가자'가 체크하도록 변경!
-                // 이제 내가 룰 위반을 감지하면 내가 바로 게임을 끝내버립니다.
-                checkGameRule(current)
+                // 즉시 심판 (내 점수 반영)
+                val myInfo = current.participants[myName]?.copy(currentMinutes = used) ?: Participant(myName, true, used, 0)
+                val updatedParticipants = current.participants.toMutableMap()
+                updatedParticipants[myName] = myInfo
+                val roomForCheck = current.copy(participants = updatedParticipants)
+
+                checkGameRule(roomForCheck)
 
                 delay(2000)
             }
@@ -121,16 +127,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         if (room.mode == "coop") {
             if (room.condition == "≥") {
-                // 이상: 다같이 목표 달성 시 성공
                 if (totalUsage >= room.goalMinutes) repo.finishGame(room.roomId, "finished")
             } else {
-                // 🔥 이하: 목표 초과 시 즉시 실패 (누구든 감지하면 펑!)
                 if (totalUsage > room.goalMinutes) repo.finishGame(room.roomId, "failed")
             }
         } else {
             if (room.condition == "≥") {
                 val winner = participants.find { it.currentMinutes >= room.goalMinutes }
                 if (winner != null) repo.finishGame(room.roomId, "finished", winner.nickname)
+            } else {
+                val loser = participants.find { it.currentMinutes > room.goalMinutes }
+                if (loser != null) {
+                    val winner = participants.find { it.nickname != loser.nickname }
+                    if (winner != null) repo.finishGame(room.roomId, "finished", winner.nickname)
+                    else repo.finishGame(room.roomId, "failed")
+                }
             }
         }
     }
@@ -141,16 +152,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         if (room.mode == "coop") {
             if (room.condition == "≤") {
-                // 시간이 끝났는데 목표 이하라면 성공
                 if (totalUsage <= room.goalMinutes) repo.finishGame(room.roomId, "finished")
                 else repo.finishGame(room.roomId, "failed")
             } else {
-                // 시간이 끝났는데 목표 미달이면 실패
                 if (totalUsage < room.goalMinutes) repo.finishGame(room.roomId, "failed")
                 else repo.finishGame(room.roomId, "finished")
             }
         } else {
-            repo.finishGame(room.roomId, "finished")
+            if (room.condition == "≤") {
+                val sorted = participants.sortedBy { it.currentMinutes }
+                val winner = sorted.firstOrNull()
+                if (winner != null && winner.currentMinutes <= room.goalMinutes) {
+                    repo.finishGame(room.roomId, "finished", winner.nickname)
+                } else {
+                    repo.finishGame(room.roomId, "failed")
+                }
+            } else {
+                repo.finishGame(room.roomId, "finished")
+            }
         }
     }
 }
