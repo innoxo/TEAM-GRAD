@@ -18,10 +18,8 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
     var categoryMinutes: MutableMap<String, Int> = mutableMapOf()
         private set
-
     var categoryApps: MutableMap<String, MutableList<AppUsage>> = mutableMapOf()
         private set
-
     var totalUsage = 0
         private set
 
@@ -33,33 +31,22 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadUsageData() {
         viewModelScope.launch {
-
             val context = getApplication<Application>()
             val pm = context.packageManager
             val usageStatsManager = context.getSystemService(UsageStatsManager::class.java)
-
             val endTime = System.currentTimeMillis()
             val startTime = endTime - 1000 * 60 * 60 * 24
-
-            val stats = usageStatsManager.queryUsageStats(
-                UsageStatsManager.INTERVAL_DAILY,
-                startTime, endTime
-            )
+            val stats = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime)
 
             val aggregatedStats = mutableMapOf<String, Long>()
-
-            stats?.forEach { stat ->
-                val pkg = stat.packageName
-                val time = stat.totalTimeInForeground
-                val current = aggregatedStats.getOrDefault(pkg, 0L)
-                aggregatedStats[pkg] = current + time
+            stats?.forEach {
+                val current = aggregatedStats.getOrDefault(it.packageName, 0L)
+                aggregatedStats[it.packageName] = current + it.totalTimeInForeground
             }
 
             val localCategoryMinutes = mutableMapOf<String, Int>()
             val localCategoryApps = mutableMapOf<String, MutableList<AppUsage>>()
             var total = 0
-
-            // 🔥 [추가] AI에게 알려줄 "내가 가진 앱 목록" (오늘 사용한 앱들)
             val myUsedAppNames = mutableListOf<String>()
 
             withContext(Dispatchers.IO) {
@@ -67,25 +54,16 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
                     if (pkg == context.packageName) return@forEach
 
                     val minutes = (time / 60000L).toInt()
+                    val appName = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { pkg }
 
-                    // 사용 시간이 1분 미만이어도 앱 이름은 수집 (추천 후보군)
-                    val appName = try {
-                        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-                    } catch (e: Exception) { pkg }
-
-                    myUsedAppNames.add(appName)
+                    myUsedAppNames.add(appName) // 사용한 앱 이름 수집
 
                     if (minutes < 1) return@forEach
-
                     val category = try { gpt.classifyApp(pkg) } catch (e: Exception) { "기타" }
 
                     localCategoryMinutes[category] = (localCategoryMinutes[category] ?: 0) + minutes
-
-                    if (!localCategoryApps.containsKey(category)) {
-                        localCategoryApps[category] = mutableListOf()
-                    }
+                    if (!localCategoryApps.containsKey(category)) localCategoryApps[category] = mutableListOf()
                     localCategoryApps[category]!!.add(AppUsage(pkg, appName, minutes))
-
                     total += minutes
                 }
             }
@@ -94,23 +72,21 @@ class UsageViewModel(application: Application) : AndroidViewModel(application) {
             categoryApps = localCategoryApps
             totalUsage = total
 
-            // AI 호출 1: 하루 요약
-            // (totalUsage가 작아도 분석은 수행하되, AI 내부에서 칭찬하도록 로직 변경됨)
+            // 1. 하루 요약 (비율 기반)
             dailySummary.value = gpt.generateDailySummary(localCategoryMinutes)
 
-            // AI 호출 2: 퀘스트 추천
+            // 2. 🔥 퀘스트 추천 (과거 기록 기반)
             val allQuests = questRepo.loadAllQuests()
+            // 완료된(성공 or 실패) 퀘스트만 골라냄
             val history = allQuests.filter { it.status == "completed" }
 
-            // 🔥 [핵심] 내 앱 목록(myUsedAppNames)을 같이 보냅니다!
+            // 기록과 앱 목록을 함께 보냄
             questRecommendation.value = gpt.recommendQuestFromHistory(history, myUsedAppNames)
         }
     }
 }
 
-class UsageViewModelFactory(
-    private val application: Application
-) : ViewModelProvider.Factory {
+class UsageViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return UsageViewModel(application) as T
     }

@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 
@@ -39,7 +40,7 @@ fun QuestCreateScreen(
     LaunchedEffect(Unit) { vm.loadInstalledApps() }
 
     val appList = vm.appList.collectAsState()
-    val recommendedApps = vm.recommendedApps.collectAsState() // ✨ 추천 앱 상태
+    val recommendedApps = vm.recommendedApps.collectAsState()
     val selected = vm.selectedApp.collectAsState()
     val condition = vm.conditionType.collectAsState()
     val minutes = vm.targetMinutes.collectAsState()
@@ -51,7 +52,6 @@ fun QuestCreateScreen(
 
     val isLoading = vm.isLoading.collectAsState()
 
-    // 🔥 Scaffold로 버튼 고정 (터치 씹힘 방지)
     Scaffold(
         containerColor = Color(0xFF00462A),
         bottomBar = {
@@ -102,7 +102,7 @@ fun QuestCreateScreen(
                 Text("퀘스트 생성", color = Color.White, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(20.dp))
 
-                // ✨ [합체] AI 추천 섹션 (친구 기능)
+                // 추천 앱 섹션
                 if (recommendedApps.value.isNotEmpty()) {
                     Text("🤖 AI 맞춤 추천", color = Color(0xFF81C784), fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
