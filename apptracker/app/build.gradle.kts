@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -20,6 +22,22 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // 추가: local.properties에서 키 읽어오기 설정
+        val properties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            properties.load(localPropertiesFile.inputStream())
+        }
+        val apiKey = properties.getProperty("OPENAI_API_KEY") ?: ""
+
+        buildConfigField("String", "OPENAI_API_KEY", "\"$apiKey\"")
+    }
+
+    // 추가: BuildConfig 기능 켜기 (최신 안드로이드 스튜디오 필수)
+    buildFeatures {
+        buildConfig = true
+        compose = true
     }
 
     buildTypes {
@@ -95,4 +113,7 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    // [추가] WorkManager (Kotlin + Coroutines 지원 버전)
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 }

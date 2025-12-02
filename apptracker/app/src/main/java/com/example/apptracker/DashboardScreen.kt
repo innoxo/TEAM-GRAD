@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.compose.ui.graphics.Brush // 추가
+import androidx.compose.ui.text.TextStyle // 추가
 import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
@@ -53,7 +55,22 @@ fun DashboardScreen(navController: NavHostController) {
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            Text("AppTracker", color = ComposeColor.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            // 1. 사용할 색상 정의 (연두색)
+            val LimeGreen = ComposeColor(0xFF32CD32) // 연두 코드
+
+            // 2. 그라데이션 브러시 생성 (왼쪽: 흰색 -> 오른쪽: 연두색)
+            val gradientBrush = Brush.horizontalGradient(
+                colors = listOf(ComposeColor.White, LimeGreen)
+            )
+
+            Text(
+                text = "Play&Focus",
+                // 기존 color = Color.White 속성은 지우고, style에 brush를 적용합니다.
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    brush = gradientBrush,
+                    fontWeight = FontWeight.Bold
+                )
+            )
             Spacer(Modifier.height(16.dp))
 
             // 1. 오늘의 한 줄 요약

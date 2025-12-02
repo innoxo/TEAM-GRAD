@@ -202,8 +202,15 @@ fun CreateRoomDialog(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
-                        value = goalMinutes, onValueChange = { if(it.all { c -> c.isDigit() }) goalMinutes = it },
-                        label = { Text("목표(분)") }, modifier = Modifier.weight(1f)
+                        value = goalMinutes, 
+                        onValueChange = { newValue ->
+                            // c: Char 라고 타입을 명시
+                            if (newValue.all { c: Char -> c.isDigit() }) {
+                                goalMinutes = newValue
+                            }
+                        },
+                        label = { Text("목표(분)") }, 
+                        modifier = Modifier.weight(1f)
                     )
                     Spacer(Modifier.width(8.dp))
                     Column {

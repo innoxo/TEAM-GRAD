@@ -65,6 +65,10 @@ fun NicknameSetupScreen(navController: NavController) {
 
                 UserSession.nickname = name
 
+                // 추가: 기기 내부에 영구 저장 (Worker가 꺼내 쓸 수 있게 하도록)
+                val prefs = navController.context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putString("saved_nickname", name).apply()
+
                 db.child("users").child(name)
                     .child("lastLogin")
                     .setValue(System.currentTimeMillis())
