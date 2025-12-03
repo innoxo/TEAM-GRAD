@@ -11,6 +11,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+// 아이콘 사용을 위한 import 추가
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -76,8 +79,16 @@ fun QuestCreateScreen(navController: NavHostController) {
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(16.dp))
+            
+            // 뒤로가기 버튼 아이콘화
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { navController.popBackStack() }) { Text("🔙", fontSize = 24.sp) }
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack, 
+                        contentDescription = "뒤로가기", 
+                        tint = Color.Black
+                    )
+                }
                 Text("새 퀘스트", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.Black)
             }
             Spacer(Modifier.height(24.dp))
@@ -106,7 +117,7 @@ fun QuestCreateScreen(navController: NavHostController) {
 
             Card(colors = CardDefaults.cardColors(Color.White), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(2.dp)) {
                 Column(Modifier.padding(20.dp)) {
-                    // 앱 선택
+                    // 앱 선택 (드롭다운 유지)
                     Text("대상 앱", color = Color.Gray, fontSize = 12.sp)
                     ExposedDropdownMenuBox(expanded = isDropdownExpanded, onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }) {
                         OutlinedTextField(

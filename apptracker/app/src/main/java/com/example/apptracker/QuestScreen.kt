@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.sp // 🔥 [추가됨] 폰트 크기 단위
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.delay // 딜레이 함수 사용을 위해 필요할 수 있음
+// 뒤로가기 버튼 디자인 개선을 위한 추가
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Icon
 
 // 디자인 테마 색상
 private val PrimaryColor = Color(0xFF00695C)
@@ -49,7 +53,11 @@ fun QuestScreen(
         // 1. 상단바
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { navController.popBackStack() }) {
-                Text("🔙", fontSize = 24.sp)
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "뒤로가기",
+                    tint = Color.Gray
+                )
             }
             Spacer(Modifier.width(8.dp))
             Column {
@@ -61,7 +69,7 @@ fun QuestScreen(
                 onClick = { navController.navigate("quest_create") },
                 colors = ButtonDefaults.buttonColors(PrimaryColor),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("+ 만들기") }
+            ) { Text("+ 만들기", color = Color.White) }
         }
 
         Spacer(Modifier.height(20.dp))

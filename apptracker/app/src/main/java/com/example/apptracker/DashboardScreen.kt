@@ -57,7 +57,7 @@ fun DashboardScreen(navController: NavHostController) {
     )
 
     Scaffold(
-        containerColor = ComposeColor(0xFF00462A),
+        containerColor = ComposeColor(0xFF81B184),
         bottomBar = {
             // 하단 메뉴
             Surface(
@@ -75,7 +75,7 @@ fun DashboardScreen(navController: NavHostController) {
                         colors = ButtonDefaults.buttonColors(containerColor = ComposeColor(0xFFF0F4F3)),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text("🔥 퀘스트", color = ComposeColor(0xFF00695C), fontWeight = FontWeight.Bold)
+                        Text("🔥 퀘스트", color = ComposeColor(0xFF00695C), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     Button(
                         onClick = { navController.navigate("multiplayer_lobby") },
@@ -106,7 +106,7 @@ fun DashboardScreen(navController: NavHostController) {
         ) {
             // 타이틀
             Text(
-                text = "AppTracker",
+                text = "Play&Focus",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     brush = gradientBrush,
                     fontWeight = FontWeight.Bold
