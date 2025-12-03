@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush // 🔥 그라데이션용
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -18,7 +19,7 @@ import androidx.navigation.NavController
 import com.google.firebase.database.FirebaseDatabase
 
 private val PrimaryColor = Color(0xFF00695C)
-private val BackgroundColor = Color(0xFFF5F7F6)
+private val BackgroundColor = Color(0xFF81B184) // 대시보드 배경톤과 맞춤
 
 object UserSession {
     var nickname: String = ""
@@ -30,7 +31,7 @@ fun NicknameSetupScreen(navController: NavController) {
     val context = LocalContext.current
     var nickname by remember { mutableStateOf(TextFieldValue("")) }
 
-    // 자동 로그인 체크
+    // 자동 로그인
     LaunchedEffect(Unit) {
         val prefs = context.getSharedPreferences("AppTrackerPrefs", Context.MODE_PRIVATE)
         val savedName = prefs.getString("nickname", null)
@@ -45,6 +46,13 @@ fun NicknameSetupScreen(navController: NavController) {
     val db = FirebaseDatabase.getInstance(
         "https://apptrackerdemo-569ea-default-rtdb.firebaseio.com"
     ).reference
+
+    // 🔥 로고용 그라데이션 브러시 (진한녹색 -> 연두색)
+    // 흰색 카드 위에서 잘 보이게 색상을 조정했습니다.
+    val LimeGreen = Color(0xFF32CD32)
+    val logoBrush = Brush.horizontalGradient(
+        colors = listOf(PrimaryColor, LimeGreen)
+    )
 
     Box(
         modifier = Modifier
@@ -64,7 +72,15 @@ fun NicknameSetupScreen(navController: NavController) {
                 modifier = Modifier.padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("AppTracker", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = PrimaryColor)
+                // 🔥 [수정됨] 로고 텍스트 & 스타일 변경
+                Text(
+                    text = "Play&Focus", // 이름 변경
+                    style = MaterialTheme.typography.displaySmall.copy( // 폰트 크기 키움
+                        brush = logoBrush, // 그라데이션 적용
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                )
+
                 Spacer(Modifier.height(8.dp))
                 Text("스마트한 습관의 시작", fontSize = 14.sp, color = Color.Gray)
 
